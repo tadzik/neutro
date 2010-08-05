@@ -22,13 +22,12 @@ sub MAIN (Str $url) {
 	die "Failed cloning the repo!" if $res;
 	chdir $name;
 	notice 'Building';
-	$res = run 'which ufo &> /dev/null';
-	if !$res {
-		run 'ufo';
+# useless checks
+	makemakefile;
+	if 'Makefile'.IO ~~ :f {
+		notice "Makefile exists and is a file";
 	} else {
-		notice 'ufo not found, downloading';
-		run 'wget http://github.com/masak/ufo/raw/bcf9efdf21993cd19d423b820d19075e5d4190b7/ufo';
-		run 'chmod +x ufo; ./ufo';
+		notice "ASD! Makefile is not a file!";
 	}
 	$res = run 'make';
 	die "Failed building the module!" if $res;
@@ -49,6 +48,191 @@ sub MAIN (Str $url) {
 
 sub USAGE {
 	say "Usage: neutro <git repo url>"
+}
+
+##############
+# Inline ufo #
+##############
+
+sub makefile_template() {
+    return q{
+.PHONY: all build test install clean distclean purge
+
+UFO := $(shell which ufo)
+PERL6 = $binary
+PREFIX = ~/.perl6
+BLIB = blib
+P6LIB = $(PWD)/$(BLIB)/lib:$(PWD)/lib:$(PERL6LIB)
+
+$sources
+PIRS = $(patsubst %.pm6,%.pir,$(SOURCES:%.pm=%.pir))
+BLIB_PIRS = $(PIRS:%=$(BLIB)/%)
+INSTALL_SOURCES = $(SOURCES:%=$(PREFIX)/%)
+INSTALL_PIRS = $(PIRS:%=$(PREFIX)/%)
+TESTS = $(shell if [ -d 't' ]; then find t -name '*.t'; fi)
+
+all:: build
+
+Makefile:: $(UFO)
+	ufo
+
+build:: $(BLIB_PIRS)
+
+$(BLIB)/%.pir:: %.pm
+	mkdir -p `dirname '$@'`
+	env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
+
+$(BLIB)/%.pir:: %.pm6
+	mkdir -p `dirname '$@'`
+	env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
+
+test:: build
+	env PERL6LIB=$(P6LIB) prove -e '$(PERL6)' -r --nocolor t/
+
+$(TESTS):: build
+	env PERL6LIB=$(P6LIB) prove -v -e '$(PERL6)' -r --nocolor $@
+
+install:: build $(INSTALL_SOURCES) $(INSTALL_PIRS)
+
+$(PREFIX)/%.pm:: %.pm
+	mkdir -p `dirname '$@'`
+	install $< $@
+
+$(PREFIX)/%.pm6:: %.pm6
+	mkdir -p `dirname '$@'`
+	install $< $@
+
+$(PREFIX)/%.pir:: blib/%.pir
+	mkdir -p `dirname '$@'`
+	install $< $@
+
+clean::
+	rm -fr $(BLIB)
+
+distclean purge:: clean
+	rm -r Makefile
+}
+
+}
+
+sub makemakefile($filename = 'Makefile', Bool :$alpha) {
+    my $binary = $alpha ?? 'alpha' !! 'perl6';
+    if $alpha {
+        note "Using 'alpha' as the Perl 6 binary. Please upgrade your code.";
+    }
+
+    my $sources = get_sources();
+
+    my $makefile = $filename eq '-' ?? $*OUT !! open $filename, :w;
+
+    $makefile.print(
+        makefile_template()\
+            .subst(/^\n/, '')\
+            .subst('$binary', $binary)\
+            .subst('$sources', $sources)
+    );
+}
+
+sub get_sources() {
+    if 'lib'.IO !~~ :e {
+        note "lib/ doesn't exist. Nothing to do.";
+        exit 1;
+    }
+    elsif 'lib'.IO !~~ :d {
+        note "lib isn't a directory. Nothing to do.";
+        exit 1;
+    }
+
+    # The grep is needed because 'find' prints a final newline, so there'll be an
+    # empty-string element at the end of the list.
+
+    my @module-files = grep { $_ },
+                    split "\n",
+                    qx[find lib -name \*.pm -or -name \*.pm6];
+
+    if !@module-files || @module-files[0].lc ~~ /'no such file'/ {
+        note "Found no modules in lib/. Nothing to do.";
+        exit 1;
+    }
+
+    # To know the best order of compilation, we build a dependency graph of
+    # all the modules in lib/. %usages_of ends up containing a graph, with
+    # the keys (containing names modules) being nodes, and the values
+    # (containing arrays of names) denoting directed edges.
+
+    my @modules = map { path-to-module-name($_) }, @module-files;
+    my %usages_of;
+    for @module-files -> $module-file {
+        my $fh = open($module-file, :r);
+        my $module = path-to-module-name($module-file);
+        %usages_of{$module} = [];
+        for $fh.lines() {
+            if /^\s* 'use' \s+ (\w+ ['::' \w+]*)/ && $0 -> $used {
+                next if $used eq 'v6';
+                next if $used eq 'MONKEY_TYPING';
+
+                %usages_of{$module}.push(~$used);
+            }
+        }
+    }
+
+    my @order = topo-sort(@modules, %usages_of);
+
+    # The intended effect of the below loop is to put as many module paths on
+    # each line as possible, breaking when necessary, and indenting nicely.
+
+    my @sources = map { &module-name-to-path($_) }, @order;
+    my $sources = 'SOURCES=';
+    my $line-length = 0;
+    for @sources -> $source {
+        $line-length += $source.chars + 1;
+        if $line-length > 65 {
+                        # SOURCES=
+            $sources ~= "\\\n        ";
+            $line-length = $source.chars + 1;
+        }
+        $sources ~= $source ~ ' ';
+    }
+    $sources.=trim-trailing;
+    return $sources;
+}
+
+# Internally, we treat the module names as module names, '::' and all.
+# But since they're really files externally, they have to be converted
+# from paths to module names, and back again.
+
+sub path-to-module-name($path) {
+    $path.subst(/^'lib/'/, '').subst(/\.pm6?$/, '').subst('/', '::', :g);
+}
+
+sub module-name-to-path($module-name) {
+    my $pm = 'lib/' ~ $module-name.subst('::', '/', :g) ~ '.pm';
+    $pm.IO ~~ :e ?? $pm !! $pm ~ '6';
+}
+
+# According to "Introduction to Algorithms" by Cormen et al., topological
+# sort is just a depth-first search of a graph where you pay attention to
+# the order in which you get done with a dfs-visit() for each node.
+
+sub topo-sort(@modules, %dependencies) {
+    my @order;
+    sub dfs-visit($module) {
+        %color_of{$module} = 'visited';
+        for %dependencies{$module}.list -> $used {
+            if %color_of{$used} eq 'not yet visited' {
+                dfs-visit($used);
+            }
+        }
+        push @order, $module;
+    }
+
+    my %color_of = @modules X=> 'not yet visited';
+    for @modules -> $module {
+        if %color_of{$module} eq 'not yet visited' {
+            dfs-visit($module);
+        }
+    }
+    @order;
 }
 
 # vim: ft=perl6
