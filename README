@@ -1,0 +1,9 @@
+neutro is a damn simple module installer for Perl 6.
+
+It currently does not resolve dependencies, but besides it works
+pretty well.
+
+Patches, ideas and criticism welcome.
+
+Usage:
+./neutro http://github.com/tadzik/perl6-Acme-Meow

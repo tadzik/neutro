@@ -1,0 +1,54 @@
+use v6;
+
+sub notice (Str $what) {
+	say "\e[1m==> ", $what, "\e[0m";
+}
+
+sub MAIN (Str $url) {
+	my $res; # for various run() calls
+	my $workdir = '.protominus.tmpdir';
+	if $workdir.IO ~~ :e {
+		notice "Old $workdir exists, removing";
+		if run "rm -rf $workdir" {
+			die "Could not remove $workdir, please do it yourself"
+		}
+	}
+	$url ~~ /(<-[\/]>+).git/;
+	my $name = $/[0];
+	mkdir $workdir;
+	chdir $workdir;
+	notice "Cloning $name";
+	$res = run "git clone $url";
+	die "Failed cloning the repo!" if $res;
+	chdir $name;
+	notice 'Building';
+	$res = run 'which ufo &> /dev/null';
+	if !$res {
+		run 'ufo';
+	} else {
+		notice 'ufo not found, downloading';
+		run 'wget http://github.com/masak/ufo/raw/bcf9efdf21993cd19d423b820d19075e5d4190b7/ufo';
+		run 'chmod +x ufo; ./ufo';
+	}
+	$res = run 'make';
+	die "Failed building the module!" if $res;
+	if 't'.IO ~~ :d {
+		notice 'Testing';
+		$res = run 'make test';
+		if $res {
+			die 'Testing failed, will not continue without --force'
+		}
+	}
+	notice 'Installing';
+	run 'make install';
+	chdir '../..';
+	notice 'Cleaning up';
+	run "rm -rf $workdir";
+	notice "Succesfully installed $name";
+}
+
+sub USAGE {
+	say "Usage: protominus.pl <git repo url>"
+}
+
+# vim: ft=perl6
