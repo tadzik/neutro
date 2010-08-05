@@ -48,7 +48,7 @@ sub MAIN (Str $url) {
 }
 
 sub USAGE {
-	say "Usage: protominus.pl <git repo url>"
+	say "Usage: neutro <git repo url>"
 }
 
 # vim: ft=perl6
