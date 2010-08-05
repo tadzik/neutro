@@ -22,13 +22,7 @@ sub MAIN (Str $url) {
 	die "Failed cloning the repo!" if $res;
 	chdir $name;
 	notice 'Building';
-# useless checks
 	makemakefile;
-	if 'Makefile'.IO ~~ :f {
-		notice "Makefile exists and is a file";
-	} else {
-		notice "ASD! Makefile is not a file!";
-	}
 	$res = run 'make';
 	die "Failed building the module!" if $res;
 	if 't'.IO ~~ :d {
@@ -131,6 +125,7 @@ sub makemakefile($filename = 'Makefile', Bool :$alpha) {
             .subst('$binary', $binary)\
             .subst('$sources', $sources)
     );
+    $makefile.close;
 }
 
 sub get_sources() {
