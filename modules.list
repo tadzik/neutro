@@ -64,7 +64,7 @@ Vector Vector git://github.com/LastOfTheCarelessMen/Vector.git
 Web web git://github.com/masak/web.git
 XML xml git://github.com/krunen/xml.git
 XML::OPML xml-opml git://github.com/radus/xml-opml.git
-XML::Writer git://github.com/masak/xml-writer.git
+XML::Writer xml-writer git://github.com/masak/xml-writer.git
 YAML yaml-pm6 git://github.com/ingydotnet/yaml-pm6.git
 Yapsi yapsi git://github.com/masak/yapsi.git
 Yarn yarn git://github.com/masak/yarn.git
