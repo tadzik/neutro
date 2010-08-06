@@ -7,3 +7,8 @@ Patches, ideas and criticism welcome.
 
 Usage:
 ./neutro http://github.com/tadzik/perl6-Acme-Meow
+
+TODO:
+Dependency handling.
+Installing modules by name, not only by url.
+Compiling to PIR.
