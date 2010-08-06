@@ -16,6 +16,7 @@ sub checklist {
 	my $list = slurp "$CONFIGDIR/modules.list";
 	my @lines = $list.split("\n");
 	for @lines -> $line {
+		next if $line ~~ /^\#/;
 		my ($name, $protoname, $url) = $line.split: ' ';
 		%modules{$name}<protoname> = $protoname;
 		%modules{$name}<url> = $url;
@@ -62,7 +63,7 @@ sub install (Str $module) {
 			next if $dep ~~ /^\#/;
 			next if $dep eq '';
 			unless isinstalled $dep {
-				my $realdep = getname $dep;
+				my $realdep = getname $dep or die "No such module: $dep ($name dependency)";
 				notice "Found $realdep as a $name dependency, installing";
 				install $dep;
 				notice "$realdep installed, now back into $name";
@@ -72,7 +73,7 @@ sub install (Str $module) {
 	}
 	# running tests (if available)
 	if 't'.IO ~~ :d {
-		notice 'Testing';
+		notice "Testing $name";
 		$res = run 'PERL6LIB=lib:$PERL6LIB prove -e `which perl6` t/';
 		die "Tests failed" if $res;
 	} else {
@@ -128,10 +129,12 @@ sub notice (Str $what) {
 }
 
 sub updatedb {
-	notice "Updating modules database";
+	notice 'Updating modules database';
 	chdir $CONFIGDIR;
+	unlink 'modules.list' if 'modules.list'.IO ~~ :e;
 	# downloading; TODO: Portable solution
 	run 'wget http://github.com/tadzik/neutro/raw/master/modules.list';
+	notice 'Fresh modules.list fetched';
 }
 
 sub MAIN ($command, $param?) {
@@ -146,6 +149,9 @@ sub MAIN ($command, $param?) {
 		when 'l' {
 			listmodules;
 		}
+		when 'u' {
+			updatedb;
+		}
 		default {
 			USAGE;
 		}
@@ -157,6 +163,7 @@ sub USAGE {
 	say "Available commands (with example usage):
 	neutro i Acme::Meow -- install Acme::Meow
 	neutro l            -- list available modules
+	neutro u            -- update the modules database
 ";
 }
 
