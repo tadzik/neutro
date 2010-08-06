@@ -1,24 +1,30 @@
+#!/usr/bin/env perl6
 use v6;
 
-sub mkdirp (Str $what) {
-	my @parts = $what.split('/').grep: { $_ };
-	my $path;
-	for @parts -> $dir {
-		$path ~= "/$dir";
-		next if $path.IO ~~ :e;
-		mkdir $path;
+my $CONFIGDIR = "%*ENV<HOME>/.neutro";
+my $INSTALLDIR = "%*ENV<HOME>/.perl6";
+my %modules;
+
+# check if modules list is present, update it otherwise
+sub checklist {
+	unless "$CONFIGDIR/modules.list".IO ~~ :f {
+		updatedb;
+	}
+	my $list = slurp "$CONFIGDIR/modules.list";
+	my @lines = $list.split("\n");
+	for @lines -> $line {
+		my ($name, $protoname, $url) = $line.split: ' ';
+		%modules{$name}<protoname> = $protoname;
+		%modules{$name}<url> = $url;
 	}
 }
 
-sub notice (Str $what) {
-	say "\e[1m==> ", $what, "\e[0m";
-}
-
-sub MAIN (Str $url) {
-	my $res; # for various run() calls
-	$url ~~ /(<-[\/]>+).git/;
-	my $name = $/[0];
-	my $workdir = "%*ENV<HOME>/.neutro/src/$name";
+sub install (Str $name) {
+	my $res;
+	unless %modules.exists($name) {
+		die "Unknown module $name";
+	}
+	my $workdir = "$CONFIGDIR/src/$name";
 	if $workdir.IO ~~ :e {
 		chdir $workdir;
 		notice "Updating $name";
@@ -28,7 +34,7 @@ sub MAIN (Str $url) {
 		mkdirp $workdir;
 		chdir $workdir;
 		notice "Cloning $name";
-		$res = run "git clone $url .";
+		$res = run "git clone %modules{$name}<url> .";
 		die "Failed cloning the repo!" if $res;
 	}
 	unless 'lib'.IO ~~ :d {
@@ -56,7 +62,7 @@ sub MAIN (Str $url) {
 		}
 	}
 	for @modulefiles -> $file {
-		my $path = "%*ENV<HOME>/.perl6/lib/" ~ $file;
+		my $path = "$INSTALLDIR/lib/" ~ $file;
 		my $dir = $path.substr(0, $path.rindex('/'));
 		mkdirp $dir;
 		run "cp $file $dir";
@@ -65,8 +71,52 @@ sub MAIN (Str $url) {
 	notice "Succesfully installed $name";
 }
 
+sub listmodules {
+	for %modules.keys.sort { .say }
+}
+
+sub mkdirp (Str $what) {
+	my @parts = $what.split('/').grep: { $_ };
+	my $path;
+	for @parts -> $dir {
+		$path ~= "/$dir";
+		next if $path.IO ~~ :e;
+		mkdir $path;
+	}
+}
+
+sub notice (Str $what) {
+	say "\e[1m==> ", $what, "\e[0m";
+}
+
+sub updatedb {
+	notice "Updating modules database";
+	chdir $CONFIGDIR;
+	# downloading; TODO: Portable solution
+	run 'wget http://github.com/tadzik/neutro/raw/master/modules.list';
+}
+
+sub MAIN ($command, $param?) {
+	checklist;
+	given $command {
+		when 'i' {
+			unless $param.defined {
+				die "i requires a parameter -- a module name";
+			}
+			install $param;
+		}
+		when 'l' {
+			listmodules;
+		}
+	}
+}
+
 sub USAGE {
-	say "Usage: neutro <git repo url>"
+	say "Usage: neutro <command> [parameter]";
+	say "Available commands (with example usage):
+	neutro i Acme::Meow -- install Acme::Meow
+	neutro l            -- list available modules
+";
 }
 
 # vim: ft=perl6
