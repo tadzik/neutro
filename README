@@ -15,5 +15,4 @@ Usage:
 ./neutro i Acme::Meow
 
 TODO:
-Dependency handling.
 Compiling to PIR.

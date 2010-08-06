@@ -7,6 +7,9 @@ my %modules;
 
 # check if modules list is present, update it otherwise
 sub checklist {
+	unless $CONFIGDIR.IO ~~ :d {
+		mkdirp $CONFIGDIR;
+	}
 	unless "$CONFIGDIR/modules.list".IO ~~ :f {
 		updatedb;
 	}
@@ -19,12 +22,22 @@ sub checklist {
 	}
 }
 
-sub install (Str $name) {
-	my $res;
-	unless %modules.exists($name) {
-		die "Unknown module $name";
+# translate proto module name to our module name (if needed)
+sub getname (Str $name) {
+	return $name if %modules.exists($name);
+	for %modules.kv -> $module, $data {
+		if $data<protoname> eq $name {
+			return $module;
+		}
 	}
+	return;
+}
+
+sub install (Str $module) {
+	my $res;
+	my $name = getname $module or die "Unknown module '$module'";
 	my $workdir = "$CONFIGDIR/src/$name";
+	# getting the module from git
 	if $workdir.IO ~~ :e {
 		chdir $workdir;
 		notice "Updating $name";
@@ -37,19 +50,39 @@ sub install (Str $name) {
 		$res = run "git clone %modules{$name}<url> .";
 		die "Failed cloning the repo!" if $res;
 	}
+	# checking if we actually have anything to do
 	unless 'lib'.IO ~~ :d {
 		die "No lib/, nothing to do"
 	}
+	# checking and installing dependencies
+	if 'deps.proto'.IO ~~ :f {
+		my $depfile = slurp 'deps.proto';
+		my @deps = $depfile.split: "\n";
+		for @deps -> $dep {
+			next if $dep ~~ /^\#/;
+			next if $dep eq '';
+			unless isinstalled $dep {
+				my $realdep = getname $dep;
+				notice "Found $realdep as a $name dependency, installing";
+				install $dep;
+				notice "$realdep installed, now back into $name";
+				chdir $workdir;
+			}
+		}
+	}
+	# running tests (if available)
 	if 't'.IO ~~ :d {
 		notice 'Testing';
 		$res = run 'PERL6LIB=lib:$PERL6LIB prove -e `which perl6` t/';
 		die "Tests failed" if $res;
+	} else {
+		notice "No tests for $name";
 	}
-	notice 'Installing';
-	# making a list of module files to install
+	# hardcore installing action
+	notice "Installing $name";
 	my @targets = dir 'lib';
 	chdir 'lib';
-	my @modulefiles;
+	my @modulefiles; # the module files to install
 	while @targets {
 		my $elem = @targets.shift;
 		if $elem.IO ~~ :d {
@@ -69,6 +102,11 @@ sub install (Str $name) {
 		say "Installed -> $path";
 	}
 	notice "Succesfully installed $name";
+}
+
+sub isinstalled (Str $module) {
+	eval "use $module";
+	return $! ?? False !! True;
 }
 
 sub listmodules {
@@ -107,6 +145,9 @@ sub MAIN ($command, $param?) {
 		}
 		when 'l' {
 			listmodules;
+		}
+		default {
+			USAGE;
 		}
 	}
 }
