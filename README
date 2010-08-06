@@ -1,7 +1,12 @@
-neutro is a damn simple module installer for Perl 6.
+neutro is a module installer for Perl 6.
+It's a temporary working solution, while experts build
+the Real Deal (proto, pls). The difference is that neutro works :)
 
-It currently does not resolve dependencies, but besides it works
-pretty well.
+It uses its own database (based on proto's one) using
+the actual module names (like Acme::Meow) rather than
+github's repo names (like perl6-Acme-Meow).
+
+It probably won't work on anything besides Unixes.
 
 Patches, ideas and criticism welcome.
 
