@@ -4,7 +4,7 @@ use v6;
 my $CONFIGDIR = "%*ENV<HOME>/.neutro";
 my $COLORS = True;
 my $INSTALLDIR = "%*ENV<HOME>/.perl6";
-my $TMPDIR = "$CONFIGDIR/work";
+my $SRCDIR = "$CONFIGDIR/src";
 my %modules;
 
 # check if modules list is present, update it otherwise
@@ -25,13 +25,8 @@ sub checklist {
 	}
 }
 
-sub cleanup {
-	run "rm -rf $TMPDIR";
-}
-
 sub crap (Str $msg) {
 	notice $msg;
-	cleanup;
 	exit 1;
 }
 
@@ -41,12 +36,19 @@ sub dirname (Str $name) {
 
 sub fetch (Str $name) {
 	my $res;
-	mkdirp $TMPDIR;
-	chdir $TMPDIR;
-	notice "Cloning $name";
-	$res = run "git clone %modules{$name}<url> {dirname $name}";
-	crap "Failed cloning the $name repo" if $res;
-	chdir dirname $name;
+	mkdirp $SRCDIR;
+	chdir $SRCDIR;
+	if "$SRCDIR/{dirname $name}".IO ~~ :d {
+		notice "Updating $name";
+		chdir dirname $name;
+		$res = run 'git pull';
+		crap "Failed updating the $name repo" if $res;
+	} else {
+		notice "Cloning $name";
+		$res = run "git clone %modules{$name}<url> {dirname $name}";
+		crap "Failed cloning the $name repo" if $res;
+		chdir dirname $name;
+	}
 }
 
 # translate proto module name to our module name (if needed)
@@ -156,7 +158,6 @@ sub updatedb {
 
 sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
 	checklist;
-	cleanup; # justin case
 	if $nocolor {
 		$COLORS = False;
 	}
@@ -177,7 +178,6 @@ sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
 			USAGE;
 		}
 	}
-	cleanup;
 }
 
 sub USAGE {

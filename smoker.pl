@@ -1,10 +1,10 @@
 #!/usr/bin/env perl6
 use v6;
 
-my @list = qx[./neutro l].split("\n").grep({$_});
+my @list = qqx[./neutro l].split("\n").grep({$_});
 
 for @list -> $module {
-	print "$module: ";
+	print "$module - ";
 	my $result = qqx[./neutro i $module --strict --nocolor];
 	my @lines = $result.split("\n").grep({$_});
 	my $lastline = @lines[@lines.end];
