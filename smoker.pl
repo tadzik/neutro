@@ -15,7 +15,7 @@ for @list -> $module {
 		when /:s Tests failed/ {
 			say 'tests failed for some dependencies'
 		}
-		when /:s Succesfully installed $module/ {
+		when /:s Successfully installed $module/ {
 			say 'ok'
 		}
 		when /:s No tests for $module/ {
