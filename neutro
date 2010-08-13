@@ -30,16 +30,21 @@ sub cleanup {
 
 sub crap (Str $msg) {
 	notice $msg;
+	cleanup;
 	exit 1;
+}
+
+sub dirname (Str $name) {
+	(~$name).trans(':' => ',')
 }
 
 sub fetch (Str $name) {
 	my $res;
-	chdir $CONFIGDIR;
+	chdir $TMPDIR;
 	notice "Cloning $name";
-	$res = run "git clone %modules{$name}<url> work";
+	$res = run "git clone %modules{$name}<url> {dirname $name}";
 	crap "Failed cloning the repo!" if $res;
-	chdir 'work';
+	chdir dirname $name;
 }
 
 # translate proto module name to our module name (if needed)
@@ -77,7 +82,7 @@ sub install (Str $module) {
 	if 't'.IO ~~ :d {
 		notice "Testing $name";
 		$res = run 'make test';
-		crap 'tests failed' if $res;
+		crap "Tests failed for $name" if $res;
 	} else {
 		notice "No tests for $name";
 	}

@@ -13,6 +13,3 @@ Patches, ideas and criticism welcome.
 Usage:
 ./neutro l
 ./neutro i Acme::Meow
-
-TODO:
-Compiling to PIR.
