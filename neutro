@@ -23,6 +23,22 @@ sub checklist {
 	}
 }
 
+sub fetch (Str $name, Str $workdir) {
+	my $res;
+	if $workdir.IO ~~ :e {
+		chdir $workdir;
+		notice "Updating $name";
+		$res = run 'git pull';
+		die "Failed updating the repo!" if $res;
+	} else {
+		mkdirp $workdir;
+		chdir $workdir;
+		notice "Cloning $name";
+		$res = run "git clone %modules{$name}<url> .";
+		die "Failed cloning the repo!" if $res;
+	}
+}
+
 # translate proto module name to our module name (if needed)
 sub getname (Str $name) {
 	return $name if %modules.exists($name);
@@ -38,24 +54,39 @@ sub install (Str $module) {
 	my $res;
 	my $name = getname $module or die "Unknown module '$module'";
 	my $workdir = "$CONFIGDIR/src/$name";
-	# getting the module from git
-	if $workdir.IO ~~ :e {
-		chdir $workdir;
-		notice "Updating $name";
-		$res = run 'git pull';
-		die "Failed updating the repo!" if $res;
+	fetch $name, $workdir;
+	installdeps $name;
+	chdir $workdir; # in case installdeps was wandering around
+	if 'Configure.pl'.IO ~~ :f {
+		$res = run 'perl6 Configure.pl';
+		die 'Configure.pl has failed' if $res;
+	}
+	if 'Makefile'.IO ~~ :f or 'makefile'.IO ~~ :f {
+		my $make = 'Makefile'.IO ~~ :f ??
+					'Makefile' !! 'makefile';
+		notice "Building $name";
+		$res = run 'make';
+		die 'make failed' if $res;
+		# checking for tests
+		my $mfile = slurp $make;
+		if $mfile ~~ /^^test:/ {
+			notice "Testing $name";
+			$res = run 'make test';
+			die 'tests failed' if $res;
+		} else {
+			notice "No tests for $name";
+		}
+		notice "Installing $name";
+		$res = run 'make install';
+		die 'make install failed' if $res;
 	} else {
-		mkdirp $workdir;
-		chdir $workdir;
-		notice "Cloning $name";
-		$res = run "git clone %modules{$name}<url> .";
-		die "Failed cloning the repo!" if $res;
+		manualtest $name;
+		manualinstall $name;
 	}
-	# checking if we actually have anything to do
-	unless 'lib'.IO ~~ :d {
-		die "No lib/, nothing to do"
-	}
-	# checking and installing dependencies
+	notice "Succesfully installed $name";
+}
+
+sub installdeps (Str $name) {
 	if 'deps.proto'.IO ~~ :f {
 		my $depfile = slurp 'deps.proto';
 		my @deps = $depfile.split: "\n";
@@ -63,23 +94,26 @@ sub install (Str $module) {
 			next if $dep ~~ /^\#/;
 			next if $dep eq '';
 			unless isinstalled $dep {
-				my $realdep = getname $dep or die "No such module: $dep ($name dependency)";
+				my $realdep = getname $dep
+							or die "No such module: $dep ($name dependency)";
 				notice "Found $realdep as a $name dependency, installing";
 				install $dep;
 				notice "$realdep installed, now back into $name";
-				chdir $workdir;
 			}
 		}
 	}
-	# running tests (if available)
-	if 't'.IO ~~ :d {
-		notice "Testing $name";
-		$res = run 'PERL6LIB=lib:$PERL6LIB prove -e `which perl6` t/';
-		die "Tests failed" if $res;
-	} else {
-		notice "No tests for $name";
-	}
-	# hardcore installing action
+}
+
+sub isinstalled (Str $module) {
+	eval "use $module";
+	return $! ?? False !! True;
+}
+
+sub listmodules {
+	for %modules.keys.sort { .say }
+}
+
+sub manualinstall (Str $name) {
 	notice "Installing $name";
 	my @targets = dir 'lib';
 	chdir 'lib';
@@ -102,16 +136,17 @@ sub install (Str $module) {
 		run "cp $file $dir";
 		say "Installed -> $path";
 	}
-	notice "Succesfully installed $name";
+	chdir '..';
 }
 
-sub isinstalled (Str $module) {
-	eval "use $module";
-	return $! ?? False !! True;
-}
-
-sub listmodules {
-	for %modules.keys.sort { .say }
+sub manualtest (Str $name) {
+	if 't'.IO ~~ :d {
+		notice "Testing $name";
+		my $res = run 'PERL6LIB=lib:$PERL6LIB prove -e `which perl6` t/';
+		die "Tests failed" if $res;
+	} else {
+		notice "No tests for $name";
+	}
 }
 
 sub mkdirp (Str $what) {
