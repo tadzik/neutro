@@ -96,7 +96,6 @@ sub install (Str $module, Bool $strict?) {
 	$res = run 'make install';
 	crap "Installing $name failed" if $res;
 	notice "Successfully installed $name";
-	cleanup;
 }
 
 sub installdeps (Str $name) {
@@ -178,6 +177,7 @@ sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
 			USAGE;
 		}
 	}
+	cleanup;
 }
 
 sub USAGE {
