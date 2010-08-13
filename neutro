@@ -2,6 +2,7 @@
 use v6;
 
 my $CONFIGDIR = "%*ENV<HOME>/.neutro";
+my $COLORS = True;
 my $INSTALLDIR = "%*ENV<HOME>/.perl6";
 my $TMPDIR = "$CONFIGDIR/work";
 my %modules;
@@ -40,10 +41,11 @@ sub dirname (Str $name) {
 
 sub fetch (Str $name) {
 	my $res;
+	mkdirp $TMPDIR;
 	chdir $TMPDIR;
 	notice "Cloning $name";
 	$res = run "git clone %modules{$name}<url> {dirname $name}";
-	crap "Failed cloning the repo!" if $res;
+	crap "Failed cloning the $name repo" if $res;
 	chdir dirname $name;
 }
 
@@ -58,14 +60,14 @@ sub getname (Str $name) {
 	return;
 }
 
-sub install (Str $module) {
+sub install (Str $module, Bool $strict?) {
 	my $res;
 	my $name = getname $module or crap "Unknown module '$module'";
 	fetch $name;
 	installdeps $name;
 	if 'Configure.pl'.IO ~~ :f {
 		$res = run 'perl6 Configure.pl';
-		crap 'Configure.pl has failed' if $res;
+		crap "Configure.pl has failed for $name" if $res;
 	}
 	unless 'Makefile'.IO ~~ :f or 'makefile'.IO ~~ :f {
 		notice 'Creating the makefile';
@@ -77,19 +79,23 @@ sub install (Str $module) {
 	}
 	notice "Building $name";
 	$res = run 'make';
-	crap 'make failed' if $res;
+	crap "Building $name failed" if $res;
 	# testing
 	if 't'.IO ~~ :d {
 		notice "Testing $name";
 		$res = run 'make test';
 		crap "Tests failed for $name" if $res;
 	} else {
-		notice "No tests for $name";
+		if $strict {
+			crap "No tests for $name";
+		} else {
+			notice "No tests for $name";
+		}
 	}
 	notice "Installing $name";
 	$res = run 'make install';
-	crap 'make install failed' if $res;
-	notice "Succesfully installed $name";
+	crap "Installing $name failed" if $res;
+	notice "Successfully installed $name";
 	cleanup;
 }
 
@@ -119,7 +125,7 @@ sub isinstalled (Str $module) {
 }
 
 sub listmodules {
-	for %modules.keys.sort { .say }
+	for %modules.keys.sort.grep({ $_ }) { .say }
 }
 
 sub mkdirp (Str $what) {
@@ -133,7 +139,11 @@ sub mkdirp (Str $what) {
 }
 
 sub notice (Str $what) {
-	say "\e[1m==> ", $what, "\e[0m";
+	if $COLORS {
+		say "\e[1m==> $what\e[0m";
+	} else {
+		say "==> $what";
+	}
 }
 
 sub updatedb {
@@ -145,14 +155,18 @@ sub updatedb {
 	notice 'Fresh modules.list fetched';
 }
 
-sub MAIN ($command, $param?) {
+sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
 	checklist;
+	cleanup; # justin case
+	if $nocolor {
+		$COLORS = False;
+	}
 	given $command {
 		when 'i' {
 			unless $param.defined {
 				crap "i requires a parameter -- a module name";
 			}
-			install $param;
+			install $param, $strict;
 		}
 		when 'l' {
 			listmodules;
@@ -169,9 +183,17 @@ sub MAIN ($command, $param?) {
 sub USAGE {
 	say "Usage: neutro <command> [parameter]";
 	say "Available commands (with example usage):
-	neutro i Acme::Meow -- install Acme::Meow
-	neutro l            -- list available modules
-	neutro u            -- update the modules database
+	neutro i Acme::Meow 
+		install Acme::Meow
+
+	neutro i Acme::Meow --strict
+		same as above, but terminate the process if no tests are found
+
+	neutro l
+		list available modules
+
+	neutro u
+		update the modules database
 ";
 }
 

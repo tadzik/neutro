@@ -11,7 +11,7 @@ DateTime::Parse DateTime-Parse git://github.com/KodiB/DateTime-Parse.git
 # DBDI DBDI git://github.com/timbunce/DBDI.git How to install this stuff?
 Digest::MD5 perl6-digest-md5 git://github.com/cosimo/perl6-digest-md5.git
 Digest::Sum Digest-sum git://github.com/xenu/Digest-sum.git
-Druid druid git://github.com/masak/druid.git
+# Druid druid git://github.com/masak/druid.git (no Web)
 Faz faz git://github.com/ruoso/faz.git
 File::Tools perl6-File-Tools git://github.com/tadzik/perl6-File-Tools.git
 Form form git://github.com/mathw/form.git
