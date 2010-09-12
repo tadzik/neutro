@@ -72,12 +72,14 @@ sub install (Str $module, Bool $strict?) {
     fetch $name;
     installdeps $name;
     notice "Building $name";
+    my $fail = False;
     try {
         Module::Build::build :v;
         CATCH {
-            crap "Building $name failed"
+            $fail = True;
         }
     }
+    crap "Building $name failed" if $fail;
     # THINKABOUT: what if tests are someplace else?
     # Everyone's allowed to do it
     if $strict and 't'.IO !~~ :d {
@@ -87,16 +89,18 @@ sub install (Str $module, Bool $strict?) {
     try {
         Module::Test::test;
         CATCH {
-            crap "Tests failed for $name"
+            $fail = True;
         }
     }
+    crap "Tests failed for $name" if $fail;
     notice "Installing $name";
     try {
         Module::Install::install :v;
         CATCH {
-            crap "Installing $name failed"
+            $fail = True;
         }
     }
+    crap "Installing $name failed" if $fail;
     notice "Successfully installed $name";
 }
 
