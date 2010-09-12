@@ -103,9 +103,8 @@ sub install (Str $module, Bool $strict?) {
 sub installdeps (Str $name) {
     my $dir = cwd;
     if 'deps.proto'.IO ~~ :f {
-        my $depfile = slurp 'deps.proto';
-        my @deps = $depfile.split: "\n";
-        for @deps -> $dep {
+        my $fh = open 'deps.proto';
+        for $fh.lines -> $dep {
             next if $dep ~~ /^\#/;
             next if $dep eq '';
             unless isinstalled $dep {
@@ -116,6 +115,7 @@ sub installdeps (Str $name) {
                 notice "$realdep installed, now back into $name";
             }
         }
+        $fh.close;
     }
     chdir $dir;
 }
