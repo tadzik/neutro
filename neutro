@@ -3,6 +3,7 @@ use v6;
 use Module::Build;
 use Module::Test;
 use Module::Install;
+use LWP::Simple;
 
 my $CONFIGDIR = "%*ENV<HOME>/.neutro";
 my $COLORS = True;
@@ -150,9 +151,9 @@ sub updatedb {
     notice 'Updating modules database';
     chdir $CONFIGDIR;
     unlink 'modules.list' if 'modules.list'.IO ~~ :e;
-    # downloading; TODO: Portable solution
-    run 'wget http://github.com/tadzik/neutro/raw/master/modules.list';
-    notice 'Fresh modules.list fetched';
+    LWP::Simple.new.getstore:
+        'http://github.com/tadzik/neutro/raw/master/modules.list',
+        'modules.list';
 }
 
 sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
