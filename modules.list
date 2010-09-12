@@ -42,6 +42,7 @@ MiniDBI MiniDBI git://github.com/mberends/MiniDBI.git
 Mubot mubot git://github.com/carlins/mubot.git
 Mwbot mwbot git://github.com/carlins/mwbot.git
 November november git://github.com/viklund/november.git
+Neutro Neutro git://github.com/tadzik/neutro.git
 # PPM ppm git://github.com/dcarrera/ppm.git no lib/
 # Proto proto git://github.com/masak/proto.git no binary is installed, proto is useless then :(
 # Pun pun git://github.com/masak/pun.git no lib/
