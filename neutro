@@ -9,191 +9,191 @@ my %modules;
 
 # check if modules list is present, update it otherwise
 sub checklist {
-	unless $CONFIGDIR.IO ~~ :d {
-		mkdirp $CONFIGDIR;
-	}
-	unless "$CONFIGDIR/modules.list".IO ~~ :f {
-		updatedb;
-	}
-	my $list = slurp "$CONFIGDIR/modules.list";
-	my @lines = $list.split("\n");
-	for @lines -> $line {
-		next if $line ~~ /^\#/;
-		my ($name, $protoname, $url) = $line.split: ' ';
-		%modules{$name}<protoname> = $protoname;
-		%modules{$name}<url> = $url;
-	}
+    unless $CONFIGDIR.IO ~~ :d {
+        mkdirp $CONFIGDIR;
+    }
+    unless "$CONFIGDIR/modules.list".IO ~~ :f {
+        updatedb;
+    }
+    my $fh = open "$CONFIGDIR/modules.list";
+    for $fh.lines -> $line {
+        next if $line ~~ /^\#/;
+        my ($name, $protoname, $url) = $line.split: ' ';
+        %modules{$name}<protoname> = $protoname;
+        %modules{$name}<url> = $url;
+    }
+    $fh.close;
 }
 
 sub crap (Str $msg) {
-	notice $msg;
-	exit 1;
+    notice $msg;
+    exit 1;
 }
 
 sub dirname (Str $name) {
-	(~$name).trans(':' => ',')
+    (~$name).trans(':' => ',')
 }
 
 sub fetch (Str $name) {
-	my $res;
-	mkdirp $SRCDIR;
-	chdir $SRCDIR;
-	if "$SRCDIR/{dirname $name}".IO ~~ :d {
-		notice "Updating $name";
-		chdir dirname $name;
-		$res = run 'git pull';
-		crap "Failed updating the $name repo" if $res;
-	} else {
-		notice "Cloning $name";
-		$res = run "git clone %modules{$name}<url> {dirname $name}";
-		crap "Failed cloning the $name repo" if $res;
-		chdir dirname $name;
-	}
+    my $res;
+    mkdirp $SRCDIR;
+    chdir $SRCDIR;
+    if "$SRCDIR/{dirname $name}".IO ~~ :d {
+        notice "Updating $name";
+        chdir dirname $name;
+        $res = run 'git pull';
+        crap "Failed updating the $name repo" if $res;
+    } else {
+        notice "Cloning $name";
+        $res = run "git clone %modules{$name}<url> {dirname $name}";
+        crap "Failed cloning the $name repo" if $res;
+        chdir dirname $name;
+    }
 }
 
 # translate proto module name to our module name (if needed)
 sub getname (Str $name) {
-	return $name if %modules.exists($name);
-	for %modules.kv -> $module, $data {
-		if $data<protoname> eq $name {
-			return $module;
-		}
-	}
-	return;
+    return $name if %modules.exists($name);
+    for %modules.kv -> $module, $data {
+        if $data<protoname> eq $name {
+            return $module;
+        }
+    }
+    return;
 }
 
 sub install (Str $module, Bool $strict?) {
-	my $res;
-	my $name = getname $module or crap "Unknown module '$module'";
-	fetch $name;
-	installdeps $name;
-	if 'Configure.pl'.IO ~~ :f {
-		$res = run 'perl6 Configure.pl';
-		crap "Configure.pl has failed for $name" if $res;
-	}
-	unless 'Makefile'.IO ~~ :f or 'makefile'.IO ~~ :f {
-		notice 'Creating the makefile';
-		if run 'which ufo' {
-			ufo-inline;
-		} else {
-			run 'ufo';
-		}
-	}
-	notice "Building $name";
-	$res = run 'make';
-	crap "Building $name failed" if $res;
-	# testing
-	if 't'.IO ~~ :d {
-		notice "Testing $name";
-		$res = run 'make test';
-		crap "Tests failed for $name" if $res;
-	} else {
-		if $strict {
-			crap "No tests for $name";
-		} else {
-			notice "No tests for $name";
-		}
-	}
-	notice "Installing $name";
-	$res = run 'make install';
-	crap "Installing $name failed" if $res;
-	notice "Successfully installed $name";
+    my $res;
+    my $name = getname $module or crap "Unknown module '$module'";
+    fetch $name;
+    installdeps $name;
+    if 'Configure.pl'.IO ~~ :f {
+        $res = run 'perl6 Configure.pl';
+        crap "Configure.pl has failed for $name" if $res;
+    }
+    unless 'Makefile'.IO ~~ :f or 'makefile'.IO ~~ :f {
+        notice 'Creating the makefile';
+        if run 'which ufo' {
+            ufo-inline;
+        } else {
+            run 'ufo';
+        }
+    }
+    notice "Building $name";
+    $res = run 'make';
+    crap "Building $name failed" if $res;
+    # testing
+    if 't'.IO ~~ :d {
+        notice "Testing $name";
+        $res = run 'make test';
+        crap "Tests failed for $name" if $res;
+    } else {
+        if $strict {
+            crap "No tests for $name";
+        } else {
+            notice "No tests for $name";
+        }
+    }
+    notice "Installing $name";
+    $res = run 'make install';
+    crap "Installing $name failed" if $res;
+    notice "Successfully installed $name";
 }
 
 sub installdeps (Str $name) {
-	my $dir = cwd;
-	if 'deps.proto'.IO ~~ :f {
-		my $depfile = slurp 'deps.proto';
-		my @deps = $depfile.split: "\n";
-		for @deps -> $dep {
-			next if $dep ~~ /^\#/;
-			next if $dep eq '';
-			unless isinstalled $dep {
-				my $realdep = getname $dep
-							or crap "No such module: $dep ($name dependency)";
-				notice "Found $realdep as a $name dependency, installing";
-				install $dep;
-				notice "$realdep installed, now back into $name";
-			}
-		}
-	}
-	chdir $dir;
+    my $dir = cwd;
+    if 'deps.proto'.IO ~~ :f {
+        my $depfile = slurp 'deps.proto';
+        my @deps = $depfile.split: "\n";
+        for @deps -> $dep {
+            next if $dep ~~ /^\#/;
+            next if $dep eq '';
+            unless isinstalled $dep {
+                my $realdep = getname $dep
+                            or crap "No such module: $dep ($name dependency)";
+                notice "Found $realdep as a $name dependency, installing";
+                install $dep;
+                notice "$realdep installed, now back into $name";
+            }
+        }
+    }
+    chdir $dir;
 }
 
 sub isinstalled (Str $module) {
-	eval "use $module";
-	return $! ?? False !! True;
+    eval "use $module";
+    return $! ?? False !! True;
 }
 
 sub listmodules {
-	for %modules.keys.sort.grep({ $_ }) { .say }
+    for %modules.keys.sort.grep({ $_ }) { .say }
 }
 
 sub mkdirp (Str $what) {
-	my @parts = $what.split('/').grep: { $_ };
-	my $path;
-	for @parts -> $dir {
-		$path ~= "/$dir";
-		next if $path.IO ~~ :e;
-		mkdir $path;
-	}
+    my @parts = $what.split('/').grep: { $_ };
+    my $path;
+    for @parts -> $dir {
+        $path ~= "/$dir";
+        next if $path.IO ~~ :e;
+        mkdir $path;
+    }
 }
 
 sub notice (Str $what) {
-	if $COLORS {
-		say "\e[1m==> $what\e[0m";
-	} else {
-		say "==> $what";
-	}
+    if $COLORS {
+        say "\e[1m==> $what\e[0m";
+    } else {
+        say "==> $what";
+    }
 }
 
 sub updatedb {
-	notice 'Updating modules database';
-	chdir $CONFIGDIR;
-	unlink 'modules.list' if 'modules.list'.IO ~~ :e;
-	# downloading; TODO: Portable solution
-	run 'wget http://github.com/tadzik/neutro/raw/master/modules.list';
-	notice 'Fresh modules.list fetched';
+    notice 'Updating modules database';
+    chdir $CONFIGDIR;
+    unlink 'modules.list' if 'modules.list'.IO ~~ :e;
+    # downloading; TODO: Portable solution
+    run 'wget http://github.com/tadzik/neutro/raw/master/modules.list';
+    notice 'Fresh modules.list fetched';
 }
 
 sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
-	checklist;
-	if $nocolor {
-		$COLORS = False;
-	}
-	given $command {
-		when 'i' {
-			unless $param.defined {
-				crap "i requires a parameter -- a module name";
-			}
-			install $param, $strict;
-		}
-		when 'l' {
-			listmodules;
-		}
-		when 'u' {
-			updatedb;
-		}
-		default {
-			USAGE;
-		}
-	}
+    checklist;
+    if $nocolor {
+        $COLORS = False;
+    }
+    given $command {
+        when 'i' {
+            unless $param.defined {
+                crap "i requires a parameter -- a module name";
+            }
+            install $param, $strict;
+        }
+        when 'l' {
+            listmodules;
+        }
+        when 'u' {
+            updatedb;
+        }
+        default {
+            USAGE;
+        }
+    }
 }
 
 sub USAGE {
-	say "Usage: neutro <command> [parameter]";
-	say "Available commands (with example usage):
-	neutro i Acme::Meow 
-		install Acme::Meow
+    say "Usage: neutro <command> [parameter]";
+    say "Available commands (with example usage):
+    neutro i Acme::Meow 
+        install Acme::Meow
 
-	neutro i Acme::Meow --strict
-		same as above, but terminate the process if no tests are found
+    neutro i Acme::Meow --strict
+        same as above, but terminate the process if no tests are found
 
-	neutro l
-		list available modules
+    neutro l
+        list available modules
 
-	neutro u
-		update the modules database
+    neutro u
+        update the modules database
 ";
 }
 
@@ -224,47 +224,47 @@ TESTS = $(shell if [ -d 't' ]; then find t -name '*.t'; fi)
 all:: build
 
 Makefile:: $(UFO)
-	ufo
+    ufo
 
 build:: $(BLIB_PIRS)
 
 $(BLIB)/%.pir:: %.pm
-	mkdir -p `dirname '$@'`
-	env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
+    mkdir -p `dirname '$@'`
+    env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
 
 $(BLIB)/%.pir:: %.pm6
-	mkdir -p `dirname '$@'`
-	env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
+    mkdir -p `dirname '$@'`
+    env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
 
 test:: build
-	env PERL6LIB=$(P6LIB) prove -e '$(PERL6)' -r --nocolor t/
+    env PERL6LIB=$(P6LIB) prove -e '$(PERL6)' -r --nocolor t/
 
 $(TESTS):: build
-	env PERL6LIB=$(P6LIB) prove -v -e '$(PERL6)' -r --nocolor $@
+    env PERL6LIB=$(P6LIB) prove -v -e '$(PERL6)' -r --nocolor $@
 
 install:: build $(INSTALL_SOURCES) $(INSTALL_PIRS) $(INSTALL_SCRIPTS)
 
 $(PREFIX)/%.pm:: %.pm
-	mkdir -p `dirname '$@'`
-	install $< $@
+    mkdir -p `dirname '$@'`
+    install $< $@
 
 $(PREFIX)/%.pm6:: %.pm6
-	mkdir -p `dirname '$@'`
-	install $< $@
+    mkdir -p `dirname '$@'`
+    install $< $@
 
 $(PREFIX)/%.pir:: blib/%.pir
-	mkdir -p `dirname '$@'`
-	install $< $@
+    mkdir -p `dirname '$@'`
+    install $< $@
 
 $(PREFIX)/bin/%:: bin/%
-	mkdir -p `dirname '$@'`
-	install $< $@
+    mkdir -p `dirname '$@'`
+    install $< $@
 
 clean::
-	rm -fr $(BLIB)
+    rm -fr $(BLIB)
 
 distclean purge:: clean
-	rm -r Makefile
+    rm -r Makefile
 }
 
 }
@@ -287,7 +287,7 @@ sub ufo-inline($filename = 'Makefile', Bool :$alpha) {
             .subst('$sources', $sources)\
             .subst('$scripts', $scripts)
     );
-	$makefile.close;
+    $makefile.close;
 }
 
 sub get_scripts() {
