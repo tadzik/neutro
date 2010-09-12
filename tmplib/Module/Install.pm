@@ -12,7 +12,13 @@ our sub install(Str $dir = '.', Str $dest = "%*ENV<HOME>/.perl6/", :$v) {
         run 'make install' and die "'make install' failed";
         chdir $cwd;
     } else {
-        my @files = find(dir => "$dir/lib", name => /[\.pm6?$] | [\.pir$]/).list;
+        my @files;
+        if "$dir/lib".IO ~~ :d {
+            for find(dir => "$dir/lib",
+                    name => /[\.pm6?$] | [\.pir$]/).list {
+                @files.push: $_
+            }
+        }
         if "$dir/bin".IO ~~ :d {
             for find(dir => "$dir/bin").list {
                 @files.push: $_

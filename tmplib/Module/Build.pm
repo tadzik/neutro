@@ -26,6 +26,10 @@ our sub build(Str $dir = '.', Str $binary = 'perl6', :$v) {
         chdir $cwd;
         return;
     }
+    if "$dir/lib".IO !~~ :d {
+        # nothing to build
+        return;
+    }
 
     my @module-files = find(dir => "$dir/lib", name => /\.pm6?$/).list;
 
