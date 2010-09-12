@@ -1,5 +1,8 @@
 #!/usr/bin/env perl6
 use v6;
+use Module::Build;
+use Module::Test;
+use Module::Install;
 
 my $CONFIGDIR = "%*ENV<HOME>/.neutro";
 my $COLORS = True;
@@ -67,36 +70,32 @@ sub install (Str $module, Bool $strict?) {
     my $name = getname $module or crap "Unknown module '$module'";
     fetch $name;
     installdeps $name;
-    if 'Configure.pl'.IO ~~ :f {
-        $res = run 'perl6 Configure.pl';
-        crap "Configure.pl has failed for $name" if $res;
-    }
-    unless 'Makefile'.IO ~~ :f or 'makefile'.IO ~~ :f {
-        notice 'Creating the makefile';
-        if run 'which ufo' {
-            ufo-inline;
-        } else {
-            run 'ufo';
+    notice "Building $name";
+    try {
+        Module::Build::build :v;
+        CATCH {
+            crap "Building $name failed"
         }
     }
-    notice "Building $name";
-    $res = run 'make';
-    crap "Building $name failed" if $res;
-    # testing
-    if 't'.IO ~~ :d {
-        notice "Testing $name";
-        $res = run 'make test';
-        crap "Tests failed for $name" if $res;
-    } else {
-        if $strict {
-            crap "No tests for $name";
-        } else {
-            notice "No tests for $name";
+    # THINKABOUT: what if tests are someplace else?
+    # Everyone's allowed to do it
+    if $strict and 't'.IO !~~ :d {
+        crap "No tests for $name";
+    }
+    notice "Testing $name";
+    try {
+        Module::Test::test;
+        CATCH {
+            crap "Tests failed for $name"
         }
     }
     notice "Installing $name";
-    $res = run 'make install';
-    crap "Installing $name failed" if $res;
+    try {
+        Module::Install::install :v;
+        CATCH {
+            crap "Installing $name failed"
+        }
+    }
     notice "Successfully installed $name";
 }
 
@@ -195,196 +194,6 @@ sub USAGE {
     neutro u
         update the modules database
 ";
-}
-
-# Inlined ufo below
-
-#!/usr/bin/env perl6
-
-# This is the template for the entire generated Makefile.
-sub makefile_template() {
-    return q{
-.PHONY: all build test install clean distclean purge
-
-UFO := $(shell which ufo)
-PERL6 = $binary
-PREFIX = ~/.perl6
-BLIB = blib
-P6LIB = $(PWD)/$(BLIB)/lib:$(PWD)/lib:$(PERL6LIB)
-
-$sources
-$scripts
-PIRS = $(patsubst %.pm6,%.pir,$(SOURCES:%.pm=%.pir))
-BLIB_PIRS = $(PIRS:%=$(BLIB)/%)
-INSTALL_SOURCES = $(SOURCES:%=$(PREFIX)/%)
-INSTALL_SCRIPTS = $(SCRIPTS:%=$(PREFIX)/%)
-INSTALL_PIRS = $(PIRS:%=$(PREFIX)/%)
-TESTS = $(shell if [ -d 't' ]; then find t -name '*.t'; fi)
-
-all:: build
-
-Makefile:: $(UFO)
-    ufo
-
-build:: $(BLIB_PIRS)
-
-$(BLIB)/%.pir:: %.pm
-    mkdir -p `dirname '$@'`
-    env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
-
-$(BLIB)/%.pir:: %.pm6
-    mkdir -p `dirname '$@'`
-    env PERL6LIB=$(P6LIB) $(PERL6) --target=pir --output=$@ $<
-
-test:: build
-    env PERL6LIB=$(P6LIB) prove -e '$(PERL6)' -r --nocolor t/
-
-$(TESTS):: build
-    env PERL6LIB=$(P6LIB) prove -v -e '$(PERL6)' -r --nocolor $@
-
-install:: build $(INSTALL_SOURCES) $(INSTALL_PIRS) $(INSTALL_SCRIPTS)
-
-$(PREFIX)/%.pm:: %.pm
-    mkdir -p `dirname '$@'`
-    install $< $@
-
-$(PREFIX)/%.pm6:: %.pm6
-    mkdir -p `dirname '$@'`
-    install $< $@
-
-$(PREFIX)/%.pir:: blib/%.pir
-    mkdir -p `dirname '$@'`
-    install $< $@
-
-$(PREFIX)/bin/%:: bin/%
-    mkdir -p `dirname '$@'`
-    install $< $@
-
-clean::
-    rm -fr $(BLIB)
-
-distclean purge:: clean
-    rm -r Makefile
-}
-
-}
-
-sub ufo-inline($filename = 'Makefile', Bool :$alpha) {
-    my $binary = $alpha ?? 'alpha' !! 'perl6';
-    if $alpha {
-        note "Using 'alpha' as the Perl 6 binary. Please upgrade your code.";
-    }
-
-    my $sources = get_sources();
-    my $scripts = get_scripts();
-
-    my $makefile = $filename eq '-' ?? $*OUT !! open $filename, :w;
-
-    $makefile.print(
-        makefile_template()\
-            .subst(/^\n/, '')\
-            .subst('$binary', $binary)\
-            .subst('$sources', $sources)\
-            .subst('$scripts', $scripts)
-    );
-    $makefile.close;
-}
-
-sub get_scripts() {
-    my $ret = 'SCRIPTS=';
-    if 'bin'.IO ~~ :d {
-        $ret ~= qx[echo bin/*].chomp;
-    }
-    return $ret;
-}
-
-sub get_sources() {
-    return 'SOURCES=' unless 'lib/'.IO ~~ :d;
-    # The grep is needed because 'find' prints a final newline, so there'll be an
-    # empty-string element at the end of the list.
-
-    my @module-files = grep { $_ },
-                    split "\n",
-                    qx[find lib -name \*.pm -or -name \*.pm6];
-
-   # To know the best order of compilation, we build a dependency graph of
-    # all the modules in lib/. %usages_of ends up containing a graph, with
-    # the keys (containing names modules) being nodes, and the values
-    # (containing arrays of names) denoting directed edges.
-
-    my @modules = map { path-to-module-name($_) }, @module-files;
-    my %usages_of;
-    for @module-files -> $module-file {
-        my $fh = open($module-file, :r);
-        my $module = path-to-module-name($module-file);
-        %usages_of{$module} = [];
-        for $fh.lines() {
-            if /^\s* 'use' \s+ (\w+ ['::' \w+]*)/ && $0 -> $used {
-                next if $used eq 'v6';
-                next if $used eq 'MONKEY_TYPING';
-
-                %usages_of{$module}.push(~$used);
-            }
-        }
-    }
-
-    my @order = topo-sort(@modules, %usages_of);
-
-    # The intended effect of the below loop is to put as many module paths on
-    # each line as possible, breaking when necessary, and indenting nicely.
-
-    my @sources = map { &module-name-to-path($_) }, @order;
-    my $sources = 'SOURCES=';
-    my $line-length = 0;
-    for @sources -> $source {
-        $line-length += $source.chars + 1;
-        if $line-length > 65 {
-                        # SOURCES=
-            $sources ~= "\\\n        ";
-            $line-length = $source.chars + 1;
-        }
-        $sources ~= $source ~ ' ';
-    }
-    $sources.=trim-trailing;
-    return $sources;
-}
-
-# Internally, we treat the module names as module names, '::' and all.
-# But since they're really files externally, they have to be converted
-# from paths to module names, and back again.
-
-sub path-to-module-name($path) {
-    $path.subst(/^'lib/'/, '').subst(/\.pm6?$/, '').subst('/', '::', :g);
-}
-
-sub module-name-to-path($module-name) {
-    my $pm = 'lib/' ~ $module-name.subst('::', '/', :g) ~ '.pm';
-    $pm.IO ~~ :e ?? $pm !! $pm ~ '6';
-}
-
-# According to "Introduction to Algorithms" by Cormen et al., topological
-# sort is just a depth-first search of a graph where you pay attention to
-# the order in which you get done with a dfs-visit() for each node.
-
-sub topo-sort(@modules, %dependencies) {
-    my @order;
-    sub dfs-visit($module) {
-        %color_of{$module} = 'visited';
-        for %dependencies{$module}.list -> $used {
-            if %color_of{$used} eq 'not yet visited' {
-                dfs-visit($used);
-            }
-        }
-        push @order, $module;
-    }
-
-    my %color_of = @modules X=> 'not yet visited';
-    for @modules -> $module {
-        if %color_of{$module} eq 'not yet visited' {
-            dfs-visit($module);
-        }
-    }
-    @order;
 }
 
 # vim: ft=perl6
