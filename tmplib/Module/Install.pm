@@ -33,7 +33,11 @@ our sub install(Str $dir = '.', Str $dest = "%*ENV<HOME>/.perl6/", :$v) {
 #            my $t = time;
 #            cp ~$file, "$target-dir/{$file.name}";
 #            say "Done copying, took {time() - $t} seconds";
-            run "cp $file $target-dir/{$file.name}";
+            if $*VM<config><osname> ne 'MSWin32' {
+                run "cp $file $target-dir/{$file.name}";
+            } else {
+                run "copy $file $target-dir/{$file.name}";
+            }
         }
     }
 }
