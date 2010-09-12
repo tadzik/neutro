@@ -5,9 +5,11 @@ use Module::Test;
 use Module::Install;
 use LWP::Simple;
 
-my $CONFIGDIR = "%*ENV<HOME>/.neutro";
+my $home = ($*VM<config><osname> eq 'MSWin32')
+            ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
+my $CONFIGDIR = "$home/.neutro";
 my $COLORS = True;
-my $INSTALLDIR = "%*ENV<HOME>/.perl6";
+my $INSTALLDIR = "$home/.perl6";
 my $SRCDIR = "$CONFIGDIR/src";
 my %modules;
 
