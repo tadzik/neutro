@@ -35,6 +35,7 @@ Math::Polynomial Math-Polynomial git://github.com/colomon/Math-Polynomial.git
 Math::RungeKutta Math-RungeKutta git://github.com/moritz/Math-RungeKutta.git
 Math::Vector Math-Vector git://github.com/colomon/Math-Vector.git
 Maya maya git://github.com/ihrd/maya.git
+Module::Tools perl6-Module-Tools git://github.com/tadzik/perl6-Module-Tools.git
 MessagePack messagepack-pm6 git://github.com/uasi/messagepack-pm6.git
 MIME::Base64 Perl6-MIME-Base64 git://github.com/snarkyboojum/Perl6-MIME-Base64.git
 MiniDBI MiniDBI git://github.com/mberends/MiniDBI.git
