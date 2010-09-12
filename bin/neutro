@@ -109,7 +109,7 @@ sub installdeps (Str $name) {
             next if $dep eq '';
             unless isinstalled $dep {
                 my $realdep = getname $dep
-                            or crap "No such module: $dep ($name dependency)";
+                    or crap "No such module: $dep ($name dependency)";
                 notice "Found $realdep as a $name dependency, installing";
                 install $dep;
                 notice "$realdep installed, now back into $name";
