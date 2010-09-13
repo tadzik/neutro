@@ -1,5 +1,6 @@
 #!/usr/bin/env perl6
 use v6;
+use File::Mkdir;
 use Module::Build;
 use Module::Test;
 use Module::Install;
@@ -15,7 +16,7 @@ my %modules;
 # check if modules list is present, update it otherwise
 sub checklist {
     unless $CONFIGDIR.IO ~~ :d {
-        mkdirp $CONFIGDIR;
+        mkdir $CONFIGDIR, :p;
     }
     unless "$CONFIGDIR/modules.list".IO ~~ :f {
         updatedb;
@@ -41,7 +42,7 @@ sub dirname (Str $name) {
 
 sub fetch (Str $name) {
     my $res;
-    mkdirp $SRCDIR;
+    mkdir $SRCDIR, :p;
     chdir $SRCDIR;
     notice "Fetching $name";
     if "$SRCDIR/{dirname $name}".IO ~~ :d {
@@ -131,16 +132,6 @@ sub isinstalled (Str $module) {
 
 sub listmodules {
     for %modules.keys.sort.grep({ $_ }) { .say }
-}
-
-sub mkdirp (Str $what) {
-    my @parts = $what.split('/').grep: { $_ };
-    my $path;
-    for @parts -> $dir {
-        $path ~= "/$dir";
-        next if $path.IO ~~ :e;
-        mkdir $path;
-    }
 }
 
 sub notice (Str $what) {
