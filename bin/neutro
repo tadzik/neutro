@@ -8,7 +8,6 @@ use LWP::Simple;
 my $home = ($*VM<config><osname> eq 'MSWin32')
             ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
 my $CONFIGDIR = "$home/.neutro";
-my $COLORS = True;
 my $INSTALLDIR = "$home/.perl6";
 my $SRCDIR = "$CONFIGDIR/src";
 my %modules;
@@ -44,14 +43,13 @@ sub fetch (Str $name) {
     my $res;
     mkdirp $SRCDIR;
     chdir $SRCDIR;
+    notice "Fetching $name";
     if "$SRCDIR/{dirname $name}".IO ~~ :d {
-        notice "Updating $name";
         chdir dirname $name;
-        $res = run 'git pull';
+        $res = run 'git pull -q';
         crap "Failed updating the $name repo" if $res;
     } else {
-        notice "Cloning $name";
-        $res = run "git clone %modules{$name}<url> {dirname $name}";
+        $res = run "git clone -q %modules{$name}<url> {dirname $name}";
         crap "Failed cloning the $name repo" if $res;
         chdir dirname $name;
     }
@@ -68,7 +66,7 @@ sub getname (Str $name) {
     return;
 }
 
-sub install (Str $module, Bool $strict?) {
+sub install (Str $module, Bool $strict?, Bool $v?) {
     my $res;
     my $name = getname $module or crap "Unknown module '$module'";
     fetch $name;
@@ -76,7 +74,7 @@ sub install (Str $module, Bool $strict?) {
     notice "Building $name";
     my $fail = False;
     try {
-        Module::Build::build :v;
+        Module::Build::build :$v;
         CATCH {
             $fail = True;
         }
@@ -89,7 +87,7 @@ sub install (Str $module, Bool $strict?) {
     }
     notice "Testing $name";
     try {
-        Module::Test::test;
+        Module::Test::test :$v;
         CATCH {
             $fail = True;
         }
@@ -97,7 +95,7 @@ sub install (Str $module, Bool $strict?) {
     crap "Tests failed for $name" if $fail;
     notice "Installing $name";
     try {
-        Module::Install::install :v;
+        Module::Install::install :$v;
         CATCH {
             $fail = True;
         }
@@ -146,11 +144,7 @@ sub mkdirp (Str $what) {
 }
 
 sub notice (Str $what) {
-    if $COLORS {
-        say "\e[1m==> $what\e[0m";
-    } else {
-        say "==> $what";
-    }
+    say "==> $what";
 }
 
 sub updatedb {
@@ -162,17 +156,14 @@ sub updatedb {
         'modules.list';
 }
 
-sub MAIN ($command, $param?, Bool :$strict, Bool :$nocolor) {
+sub MAIN ($command, $param?, Bool :$strict, Bool :$v) {
     checklist;
-    if $nocolor {
-        $COLORS = False;
-    }
     given $command {
         when 'i' {
             unless $param.defined {
                 crap "i requires a parameter -- a module name";
             }
-            install $param, $strict;
+            install $param, $strict, $v;
         }
         when 'l' {
             listmodules;
