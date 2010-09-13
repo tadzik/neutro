@@ -127,7 +127,7 @@ sub installdeps (Str $name) {
 }
 
 sub isinstalled (Str $module) {
-    eval "use $module";
+    eval "use {getname($module)}";
     return $! ?? False !! True;
 }
 
