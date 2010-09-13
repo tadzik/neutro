@@ -115,9 +115,8 @@ sub installdeps (Str $name) {
             unless isinstalled $dep {
                 my $realdep = getname $dep
                     or crap "No such module: $dep ($name dependency)";
-                notice "Found $realdep as a $name dependency, installing";
+                notice "$name depends on $realdep, installing now";
                 install $dep;
-                notice "$realdep installed, now back into $name";
             }
         }
         $fh.close;
