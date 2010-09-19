@@ -10,6 +10,7 @@ my $home = ($*VM<config><osname> eq 'MSWin32')
             ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
 my $CONFIGDIR = "$home/.neutro";
 my $INSTALLDIR = "$home/.perl6";
+my $INSTALLED = "$CONFIGDIR/installed";
 my $SRCDIR = "$CONFIGDIR/src";
 my %modules;
 
@@ -24,6 +25,9 @@ sub checklist {
     }
     unless "$CONFIGDIR/projects.list".IO ~~ :f {
         updatedb;
+    }
+    unless $INSTALLED.IO ~~ :f {
+        open($INSTALLED, :w).close;
     }
     my $fh = open "$CONFIGDIR/projects.list";
     for $fh.lines -> $line {
@@ -91,6 +95,13 @@ sub install (Str $module, Bool $strict?, Bool $v?) {
     }
     crap "Installing $name failed" if $fail;
     notice "Successfully installed $name";
+
+    unless isinstalled $name {
+        given open($INSTALLED, :a) {
+            .say($name);
+            .close;
+        }
+    }
 }
 
 sub installdeps (Str $name) {
@@ -113,8 +124,12 @@ sub installdeps (Str $name) {
 }
 
 sub isinstalled (Str $module) {
-    eval "use {$module}";
-    return $! ?? False !! True;
+    my $isit;
+    given open($INSTALLED) {
+        $isit = .lines.first($module).Bool;
+        .close;
+    }
+    return $isit;
 }
 
 sub listmodules {
