@@ -22,15 +22,14 @@ sub checklist {
     unless $CONFIGDIR.IO ~~ :d {
         mkdir $CONFIGDIR, :p;
     }
-    unless "$CONFIGDIR/modules.list".IO ~~ :f {
+    unless "$CONFIGDIR/projects.list".IO ~~ :f {
         updatedb;
     }
-    my $fh = open "$CONFIGDIR/modules.list";
+    my $fh = open "$CONFIGDIR/projects.list";
     for $fh.lines -> $line {
         next if $line ~~ /^\#/;
-        my ($name, $protoname, $url) = $line.split: ' ';
-        %modules{$name}<protoname> = $protoname;
-        %modules{$name}<url> = $url;
+        my ($name, $url) = $line.split: ' ';
+        %modules{$name} = $url;
     }
     $fh.close;
 }
@@ -40,40 +39,25 @@ sub crap (Str $msg) {
     exit 1;
 }
 
-sub dirname (Str $name) {
-    (~$name).trans(':' => ',')
-}
-
 sub fetch (Str $name) {
     my $res;
     mkdir $SRCDIR, :p;
     chdir $SRCDIR;
     notice "Fetching $name";
-    if "$SRCDIR/{dirname $name}".IO ~~ :d {
-        chdir dirname $name;
+    if "$SRCDIR/$name".IO ~~ :d {
+        chdir $name;
         $res = run 'git pull -q';
         crap "Failed updating the $name repo" if $res;
     } else {
-        $res = run "git clone -q %modules{$name}<url> {dirname $name}";
+        $res = run "git clone -q %modules{$name} $name";
         crap "Failed cloning the $name repo" if $res;
-        chdir dirname $name;
+        chdir $name;
     }
-}
-
-# translate proto module name to our module name (if needed)
-sub getname (Str $name) {
-    return $name if %modules.exists($name);
-    for %modules.kv -> $module, $data {
-        if $data<protoname> eq $name {
-            return $module;
-        }
-    }
-    return;
 }
 
 sub install (Str $module, Bool $strict?, Bool $v?) {
     my $res;
-    my $name = getname $module or crap "Unknown module '$module'";
+    my $name = $module or crap "Unknown module '$module'";
     fetch $name;
     installdeps $name;
     notice "Building $name";
@@ -117,7 +101,7 @@ sub installdeps (Str $name) {
             next if $dep ~~ /^\#/;
             next if $dep eq '';
             unless isinstalled $dep {
-                my $realdep = getname $dep
+                my $realdep = $dep
                     or crap "No such module: $dep ($name dependency)";
                 notice "$name depends on $realdep, installing now";
                 install $dep;
@@ -129,7 +113,7 @@ sub installdeps (Str $name) {
 }
 
 sub isinstalled (Str $module) {
-    eval "use {getname($module)}";
+    eval "use {$module}";
     return $! ?? False !! True;
 }
 
@@ -144,10 +128,10 @@ sub notice (Str $what) {
 sub updatedb {
     notice 'Updating modules database';
     chdir $CONFIGDIR;
-    unlink 'modules.list' if 'modules.list'.IO ~~ :e;
+    unlink 'projects.list' if 'projects.list'.IO ~~ :e;
     LWP::Simple.new.getstore:
-        'http://github.com/tadzik/neutro/raw/master/modules.list',
-        'modules.list';
+        'http://github.com/perl6/ecosystem/raw/master/projects.list',
+        'projects.list';
 }
 
 sub MAIN ($command, $param?, Bool :$strict, Bool :$v) {
