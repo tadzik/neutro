@@ -9,7 +9,7 @@ As neutro is not dependency-free, it comes with a set of libs which
 will help it install itself. To bootstrap neutro, use something like
 this:
 
-PERL6LIB=tmplib bin/neutro i neutro
+PERL6LIB=tmplib bin/neutro neutro
 
 Usage:
 neutro update
