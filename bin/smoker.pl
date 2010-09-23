@@ -1,11 +1,11 @@
 #!/usr/bin/env perl6
 use v6;
 
-my @list = qqx[neutro l].split("\n").grep({$_});
+my @list = qqx[neutro list].split("\n").grep({$_});
 
 for @list -> $module {
     print "$module - ";
-    my $result = qqx[neutro i $module --strict --nocolor];
+    my $result = qqx[neutro $module --strict];
     my @lines = $result.split("\n").grep({$_});
     my $lastline = @lines[@lines.end];
     given $lastline {
@@ -13,7 +13,7 @@ for @list -> $module {
             say 'tests failed'
         }
         when /:s Tests failed/ {
-            say 'tests failed for some dependencies'
+            say 'unable to install dependencies'
         }
         when /:s Successfully installed $module/ {
             say 'ok'
@@ -25,19 +25,22 @@ for @list -> $module {
             say 'building failed'
         }
         when /:s Building .+ failed/ {
-            say 'building dependencies failed'
+            say 'unable to install dependencies'
         }
         when /:s Configure.pl has failed for $module/ {
             say 'Configure.pl failed'
         }
         when /:s Configure.pl has failed/ {
-            say 'building dependencies failed'
+            say 'unable to install dependencies'
         }
         when /:s Installing $module failed/ {
             say 'installing failed'
         }
         when /:s Installing .+ failed/ {
-            say 'installing dependencies failed'
+            say 'unable to install dependencies'
+        }
+        when /:s Unknown module/ {
+            say 'dependencies not in module ecosystem'
         }
         default {
             say "Unknown result: '$lastline'"

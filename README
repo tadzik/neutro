@@ -2,12 +2,6 @@ neutro is a module installer for Perl 6.
 It's a temporary working solution, while experts build
 the Real Deal (proto, pls). The difference is that neutro works :)
 
-It uses its own database (based on proto's one) using
-the actual module names (like Acme::Meow) rather than
-github's repo names (like perl6-Acme-Meow).
-
-It probably won't work on anything besides Unixes.
-
 Patches, ideas and criticism welcome.
 
 Bootstraping:
@@ -18,5 +12,6 @@ this:
 PERL6LIB=tmplib bin/neutro i neutro
 
 Usage:
-./neutro l
-./neutro i Acme::Meow
+neutro update
+neutro list
+neutro perl6-Acme-Meow

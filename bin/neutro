@@ -9,7 +9,7 @@ use LWP::Simple;
 my $home = ($*VM<config><osname> eq 'MSWin32')
             ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
 my $CONFIGDIR = "$home/.neutro";
-my $INSTALLDIR = "$home/.perl6";
+my $INSTALLDIR = %*ENV<DESTDIR> // "$home/.perl6";
 my $INSTALLED = "$CONFIGDIR/installed";
 my $SRCDIR = "$CONFIGDIR/src";
 my %modules;
@@ -61,10 +61,10 @@ sub fetch (Str $name) {
 
 sub install (Str $module, Bool $strict?, Bool $v?) {
     my $res;
-    my $name = $module or crap "Unknown module '$module'";
-    fetch $name;
-    installdeps $name;
-    notice "Building $name";
+    %modules.exists($module) or crap "Unknown module $module";
+    fetch $module;
+    installdeps $module;
+    notice "Building $module";
     my $fail = False;
     try {
         Module::Build::build :$v;
@@ -72,33 +72,33 @@ sub install (Str $module, Bool $strict?, Bool $v?) {
             $fail = True;
         }
     }
-    crap "Building $name failed" if $fail;
+    crap "Building $module failed" if $fail;
     # THINKABOUT: what if tests are someplace else?
     # Everyone's allowed to do it
     if $strict and 't'.IO !~~ :d {
-        crap "No tests for $name";
+        crap "No tests for $module";
     }
-    notice "Testing $name";
+    notice "Testing $module";
     try {
         Module::Test::test :$v;
         CATCH {
             $fail = True;
         }
     }
-    crap "Tests failed for $name" if $fail;
-    notice "Installing $name";
+    crap "Tests failed for $module" if $fail;
+    notice "Installing $module";
     try {
         Module::Install::install :$v;
         CATCH {
             $fail = True;
         }
     }
-    crap "Installing $name failed" if $fail;
-    notice "Successfully installed $name";
+    crap "Installing $module failed" if $fail;
+    notice "Successfully installed $module";
 
-    unless isinstalled $name {
+    unless isinstalled $module {
         given open($INSTALLED, :a) {
-            .say($name);
+            .say($module);
             .close;
         }
     }
@@ -149,42 +149,18 @@ sub updatedb {
         'projects.list';
 }
 
-sub MAIN ($command, $param?, Bool :$strict, Bool :$v) {
+multi MAIN ('list') {
     checklist;
-    given $command {
-        when 'i' {
-            unless $param.defined {
-                crap "i requires a parameter -- a module name";
-            }
-            install $param, $strict, $v;
-        }
-        when 'l' {
-            listmodules;
-        }
-        when 'u' {
-            updatedb;
-        }
-        default {
-            USAGE;
-        }
-    }
+    listmodules;
 }
 
-sub USAGE {
-    say "Usage: neutro <command> [parameter]";
-    say "Available commands (with example usage):
-    neutro i Acme::Meow 
-        install Acme::Meow
+multi MAIN ('update') {
+    updatedb;
+}
 
-    neutro i Acme::Meow --strict
-        same as above, but terminate the process if no tests are found
-
-    neutro l
-        list available modules
-
-    neutro u
-        update the modules database
-";
+multi MAIN ($module, Bool :$strict, Bool :$v) {
+    checklist;
+    install $module, $strict, $v;
 }
 
 # vim: ft=perl6
