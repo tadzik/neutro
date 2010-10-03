@@ -1,6 +1,7 @@
 #!/usr/bin/env perl6
 use v6;
 
+run 'neutro update';
 my @list = qqx[neutro list].split("\n").grep({$_});
 
 for @list -> $module {
