@@ -43,7 +43,7 @@ sub crap (Str $msg) {
     exit 1;
 }
 
-sub fetch (Str $name) {
+sub fetch (Str $name, Str $url) {
     my $res;
     mkdir $SRCDIR, :p;
     chdir $SRCDIR;
@@ -53,7 +53,7 @@ sub fetch (Str $name) {
         $res = run 'git pull -q';
         crap "Failed updating the $name repo" if $res;
     } else {
-        $res = run "git clone -q %modules{$name} $name";
+        $res = run "git clone -q $url $name";
         crap "Failed cloning the $name repo" if $res;
         chdir $name;
     }
@@ -62,7 +62,7 @@ sub fetch (Str $name) {
 sub install (Str $module, Bool $strict?, Bool $v?) {
     my $res;
     %modules.exists($module) or crap "Unknown module $module";
-    fetch $module;
+    fetch $module, %modules{$module};
     installdeps $module;
     notice "Building $module";
     my $fail = False;
@@ -144,16 +144,7 @@ sub updatedb {
     notice 'Updating modules database';
     chdir $CONFIGDIR;
     unlink 'projects.list' if 'projects.list'.IO ~~ :e;
-    chdir $SRCDIR;
-    if "$SRCDIR/ecosystem".IO ~~ :d {
-        chdir 'ecosystem';
-        my $res = run 'git pull -q';
-        crap "Failed updating the ecosystem" if $res;
-    } else {
-        my $res = run "git clone -q git://github.com/perl6/ecosystem.git";
-        crap "Failed cloning the ecosystem" if $res;
-        chdir 'ecosystem';
-    }
+    fetch 'ecosystem', 'git://github.com/perl6/ecosystem.git';
     cp 'projects.list', "$CONFIGDIR/projects.list";
 }
 
