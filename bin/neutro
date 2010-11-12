@@ -59,10 +59,12 @@ sub fetch (Str $name, Str $url) {
     }
 }
 
-sub install (Str $module, Bool $strict?, Bool $v?) {
+sub install (Str $module, Bool $strict?, Bool $v?, Bool :$fetch = True) {
     my $res;
-    %modules.exists($module) or crap "Unknown module $module";
-    fetch $module, %modules{$module};
+    if $fetch {
+        %modules.exists($module) or crap "Unknown module $module";
+        fetch $module, %modules{$module};
+    }
     installdeps $module;
     notice "Building $module";
     my $fail = False;
@@ -159,7 +161,7 @@ multi MAIN ('update') {
 
 multi MAIN ($module, Bool :$strict, Bool :$v) {
     checklist;
-    install $module, $strict, $v;
+    install $module, $strict, $v, :fetch($module eq '.' ?? False !! True);
 }
 
 # vim: ft=perl6

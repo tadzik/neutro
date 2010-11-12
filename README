@@ -9,9 +9,10 @@ As neutro is not dependency-free, it comes with a set of libs which
 will help it install itself. To bootstrap neutro, use something like
 this:
 
-PERL6LIB=tmplib bin/neutro neutro
+PERL6LIB=tmplib bin/neutro .
 
 Usage:
 neutro update
 neutro list
-neutro perl6-Acme-Meow
+neutro perl6-Acme-Meow # install perl6-Acme-Meow from the module ecosystem
+neutro .               # install a module in the current directory
