@@ -114,9 +114,7 @@ sub installdeps (Str $name) {
             next if $dep ~~ /^\#/;
             next if $dep eq '';
             unless isinstalled $dep {
-                my $realdep = $dep
-                    or crap "No such module: $dep ($name dependency)";
-                notice "$name depends on $realdep, installing now";
+                notice "$name depends on $dep, installing now";
                 install $dep;
             }
         }
