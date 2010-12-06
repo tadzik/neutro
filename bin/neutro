@@ -142,10 +142,12 @@ sub notice (Str $what) {
 
 sub updatedb {
     notice 'Updating modules database';
+    my $cwd = cwd;
     chdir $CONFIGDIR;
     unlink 'projects.list' if 'projects.list'.IO ~~ :e;
     fetch 'ecosystem', 'git://github.com/perl6/ecosystem.git';
     cp 'projects.list', "$CONFIGDIR/projects.list";
+    chdir $cwd;
 }
 
 multi MAIN ('list') {
