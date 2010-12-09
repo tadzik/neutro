@@ -16,10 +16,6 @@ my %modules;
 
 # check if modules list is present, update it otherwise
 sub checklist {
-    if %*ENV<PERL6LIB>.index($INSTALLDIR) ~~ Failure {
-        notice "$INSTALLDIR is not in your PERL6LIB env variable, "
-               ~ "you may not be able to use the installed modules";
-    }
     unless $CONFIGDIR.IO ~~ :d {
         mkdir $CONFIGDIR, :p;
     }
