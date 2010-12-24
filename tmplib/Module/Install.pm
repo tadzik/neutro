@@ -1,8 +1,13 @@
+module Module::Install;
+
 #use File::Copy;
 use File::Find;
-use File::Mkdir;
-
-module Module::Install;
+#use File::Mkdir; TODO: For some reason this does not work.
+sub mkdirp($name as Str) {
+    for [\~] $name.split('/').map({"$_/"}) {
+        mkdir($_) unless .IO.d
+    }
+}
 
 our sub install(Str $dir = '.', Str $dest = "%*ENV<HOME>/.perl6/", :$v) {
     if $*VM<config><osname> ne 'MSWin32'
@@ -25,18 +30,13 @@ our sub install(Str $dir = '.', Str $dest = "%*ENV<HOME>/.perl6/", :$v) {
             }
         }
         for @files -> $file {
-            my $target-dir = $file.dir.subst(/\.\//, $dest);
-            mkdir $target-dir, :p;
-            say "Installing $file" if $v.defined;
-#            say "Starting copying $pmfile, sized {
-#                $pmfile.Str.IO.stat.size} bytes";
-#            my $t = time;
-#            cp ~$file, "$target-dir/{$file.name}";
-#            say "Done copying, took {time() - $t} seconds";
-            if $*VM<config><osname> ne 'MSWin32' {
-                run "cp $file $target-dir/{$file.name}";
-            } else {
+            my $target-dir = $file.dir.subst(/^$dir\//, $dest);
+            mkdirp $target-dir;
+            say "Installing $file" if $v;
+            if $*VM<config><osname> eq 'MSWin32' {
                 run "copy $file $target-dir/{$file.name}";
+            } else {
+                run "cp $file $target-dir/{$file.name}";
             }
         }
     }

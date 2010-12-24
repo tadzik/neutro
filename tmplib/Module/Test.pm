@@ -10,8 +10,11 @@ our sub test(Str $dir = '.', Str $binary = 'perl6', :$v) {
     }
     if "$dir/t".IO ~~ :d {
         my $x = $v ?? '-v' !! '-Q';
-        my $command = "PERL6LIB=$dir/lib prove $x -e $binary -r $dir/t/";
+        my $cwd = cwd;
+        chdir $dir;
+        my $command = "PERL6LIB=lib prove $x -e $binary -r t/";
         run $command and die 'Testing failed';
+        chdir $cwd;
     }
 }
 

@@ -3,15 +3,15 @@ use File::Find;
 module Module::Build;
 
 sub path-to-module-name($path) {
-    $path.subst(/^'lib/'/, '').subst(/\.pm6?$/, '').subst('/', '::', :g)
+    $path.subst(/^.*'lib/'/, '').subst(/\.pm6?$/, '').subst('/', '::', :g)
 }
 
-sub module-name-to-path($module-name) {
-    my $pm = 'lib/' ~ $module-name.subst('::', '/', :g) ~ '.pm';
+sub module_name_to_path($base, $module-name) {
+    my $pm = "$base/lib/" ~ $module-name.subst('::', '/', :g) ~ '.pm';
     $pm.IO ~~ :e ?? $pm !! $pm ~ '6';
 }
 
-our sub build(Str $dir = '.', Str $binary = 'perl6', :$v) {
+our sub build(Str :$dir = '.', Str :$binary = 'perl6', Bool :$v) {
     if "$dir/Configure.pl".IO ~~ :f {
         my $cwd = cwd;
         chdir $dir;
@@ -81,12 +81,13 @@ our sub build(Str $dir = '.', Str $binary = 'perl6', :$v) {
         push @order, $module;
     }
 
-    for @order».&module-name-to-path -> $module {
+    my @opath = @order.map: { module_name_to_path($dir, $_) };
+    for @opath -> $module {
         my $pir = $module.subst(/\.pm6?/, ".pir");
         next if ($pir.IO ~~ :f &&
                 $pir.IO.stat.modifytime > $module.IO.stat.modifytime);
         my $command = "PERL6LIB=$dir/lib $binary --target=PIR --output=$pir $module";
-        say $command if $v.defined;
+        say $command if $v;
         run $command and die "Failed building $module"
     }
 }

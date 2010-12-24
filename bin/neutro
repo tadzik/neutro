@@ -14,6 +14,13 @@ my $INSTALLED = "$CONFIGDIR/installed";
 my $SRCDIR = "$CONFIGDIR/src";
 my %modules;
 
+sub indir (Str $where, Callable $what) {
+    my $old = cwd;
+    mkdir $where, :p;
+    chdir $where;
+    $what();
+    chdir $old;
+}
 # check if modules list is present, update it otherwise
 sub checklist {
     unless $CONFIGDIR.IO ~~ :d {
@@ -41,36 +48,38 @@ sub crap (Str $msg) {
 
 sub fetch (Str $name, Str $url) {
     my $res;
-    mkdir $SRCDIR, :p;
-    chdir $SRCDIR;
-    notice "Fetching $name";
-    if "$SRCDIR/$name".IO ~~ :d {
-        chdir $name;
-        $res = run 'git pull -q';
-        crap "Failed updating the $name repo" if $res;
-    } else {
-        $res = run "git clone -q $url $name";
-        crap "Failed cloning the $name repo" if $res;
-        chdir $name;
-    }
+    indir $SRCDIR, {
+        notice "Fetching $name";
+        if "$SRCDIR/$name".IO ~~ :d {
+            indir $name, {
+                $res = run 'git pull -q';
+                crap "Failed updating the $name repo" if $res;
+            };
+        } else {
+            $res = run "git clone -q $url $name";
+            crap "Failed cloning the $name repo" if $res;
+        }
+    };
 }
 
-sub install (Str $module, Bool $strict?, Bool $v?, Bool :$fetch = True) {
+sub install (Str $module, Bool $strict, Bool $v, Bool :$fetch = True) {
     my $res;
     if $fetch {
         %modules.exists($module) or crap "Unknown module $module";
         fetch $module, %modules{$module};
     }
-    installdeps $module;
+    installdeps $module, $strict, $v;
+
     notice "Building $module";
     my $fail = False;
     try {
-        Module::Build::build :$v;
+        Module::Build::build :dir("$SRCDIR/$module"), :$v;
         CATCH {
             $fail = True;
         }
     }
     crap "Building $module failed" if $fail;
+
     # THINKABOUT: what if tests are someplace else?
     # Everyone's allowed to do it
     if $strict and 't'.IO !~~ :d {
@@ -78,20 +87,22 @@ sub install (Str $module, Bool $strict?, Bool $v?, Bool :$fetch = True) {
     }
     notice "Testing $module";
     try {
-        Module::Test::test :$v;
+        Module::Test::test "$SRCDIR/$module", :$v;
         CATCH {
             $fail = True;
         }
     }
     crap "Tests failed for $module" if $fail;
+
     notice "Installing $module";
     try {
-        Module::Install::install :$v;
+        Module::Install::install "$SRCDIR/$module", :$v;
         CATCH {
             $fail = True;
         }
     }
     crap "Installing $module failed" if $fail;
+
     notice "Successfully installed $module";
 
     unless isinstalled $module {
@@ -102,21 +113,21 @@ sub install (Str $module, Bool $strict?, Bool $v?, Bool :$fetch = True) {
     }
 }
 
-sub installdeps (Str $name) {
-    my $dir = cwd;
-    if 'deps.proto'.IO ~~ :f {
-        my $fh = open 'deps.proto';
-        for $fh.lines -> $dep {
-            next if $dep ~~ /^\#/;
-            next if $dep eq '';
-            unless isinstalled $dep {
-                notice "$name depends on $dep, installing now";
-                install $dep;
+sub installdeps (Str $name, $strict, $v) {
+    indir "$SRCDIR/$name", {
+        if 'deps.proto'.IO ~~ :f {
+            my $fh = open 'deps.proto';
+            for $fh.lines -> $dep {
+                next if $dep ~~ /^\#/;
+                next if $dep eq '';
+                unless isinstalled $dep {
+                    notice "verbose" if $v;
+                    install $dep, $strict, $v;
+                }
             }
+            $fh.close;
         }
-        $fh.close;
-    }
-    chdir $dir;
+    };
 }
 
 sub isinstalled (Str $module) {
@@ -138,12 +149,11 @@ sub notice (Str $what) {
 
 sub updatedb {
     notice 'Updating modules database';
-    my $cwd = cwd;
-    chdir $CONFIGDIR;
-    unlink 'projects.list' if 'projects.list'.IO ~~ :e;
-    fetch 'ecosystem', 'git://github.com/perl6/ecosystem.git';
-    cp 'projects.list', "$CONFIGDIR/projects.list";
-    chdir $cwd;
+    indir $CONFIGDIR, {
+        unlink 'projects.list' if 'projects.list'.IO ~~ :e;
+        fetch 'ecosystem', 'git://github.com/perl6/ecosystem.git';
+        cp "$SRCDIR/ecosystem/projects.list", "$CONFIGDIR/projects.list";
+    };
 }
 
 multi MAIN ('list') {
@@ -155,7 +165,7 @@ multi MAIN ('update') {
     updatedb;
 }
 
-multi MAIN ($module, Bool :$strict, Bool :$v) {
+multi MAIN ($module, Bool :$strict, Bool :$v = False) {
     checklist;
     install $module, $strict, $v, :fetch($module eq '.' ?? False !! True);
 }
