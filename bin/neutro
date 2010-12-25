@@ -6,14 +6,21 @@ use Module::Build;
 use Module::Test;
 use Module::Install;
 
-my $home = ($*VM<config><osname> eq 'MSWin32')
-            ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
-my $CONFIGDIR = "$home/.neutro";
+# Yay globals!
+my $home       = ($*VM<config><osname> eq 'MSWin32')
+                 ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
+my $CONFIGDIR  = "$home/.neutro";
 my $INSTALLDIR = %*ENV<DESTDIR> // "$home/.perl6";
-my $INSTALLED = "$CONFIGDIR/installed";
-my $SRCDIR = "$CONFIGDIR/src";
+my $INSTALLED  = "$CONFIGDIR/installed";
+my $SRCDIR     = "$CONFIGDIR/src";
+my $STRICT     = False;
+my $NOTEST     = False;
+my $VERBOSE    = False;
 my %modules;
 
+#
+# Execute a block of code in a given directory
+#
 sub indir (Str $where, Callable $what) {
     my $old = cwd;
     mkdir $where, :p;
@@ -21,7 +28,10 @@ sub indir (Str $where, Callable $what) {
     $what();
     chdir $old;
 }
-# check if modules list is present, update it otherwise
+
+#
+# Ensure the modules list is present
+#
 sub checklist {
     unless $CONFIGDIR.IO ~~ :d {
         mkdir $CONFIGDIR, :p;
@@ -41,11 +51,17 @@ sub checklist {
     $fh.close;
 }
 
+#
+# Terminate a program yelling
+#
 sub crap (Str $msg) {
     notice $msg;
     exit 1;
 }
 
+#
+# Download/update the given module
+#
 sub fetch (Str $name, Str $url) {
     my $res;
     indir $SRCDIR, {
@@ -62,41 +78,47 @@ sub fetch (Str $name, Str $url) {
     };
 }
 
-sub install (Str $module, Bool $strict, Bool $v, Bool :$fetch = True) {
+#
+# Install the specified module
+#
+sub install (Str $module) {
     my $res;
-    if $fetch {
-        %modules.exists($module) or crap "Unknown module $module";
+    my $path;
+    if %modules.exists($module) {
         fetch $module, %modules{$module};
     }
-    installdeps $module, $strict, $v;
+    $path = modulepath($module)
+            or crap "Unknown module or path '$module'";
+
+    installdeps $module;
 
     notice "Building $module";
     my $fail = False;
     try {
-        Module::Build::build :dir("$SRCDIR/$module"), :$v;
+        Module::Build::build :dir($path), :v($VERBOSE);
         CATCH {
             $fail = True;
         }
     }
     crap "Building $module failed" if $fail;
 
-    # THINKABOUT: what if tests are someplace else?
-    # Everyone's allowed to do it
-    if $strict and 't'.IO !~~ :d {
-        crap "No tests for $module";
-    }
-    notice "Testing $module";
-    try {
-        Module::Test::test "$SRCDIR/$module", :$v;
-        CATCH {
-            $fail = True;
+    unless $NOTEST {
+        if $STRICT and "$path/t".IO !~~ :d {
+            crap "No tests for $module";
         }
+        notice "Testing $module";
+        try {
+            Module::Test::test :dir($path), :v($VERBOSE);
+            CATCH {
+                $fail = True;
+            }
+        }
+        crap "Tests failed for $module" if $fail;
     }
-    crap "Tests failed for $module" if $fail;
 
     notice "Installing $module";
     try {
-        Module::Install::install "$SRCDIR/$module", :$v;
+        Module::Install::install :dir($path), :v($VERBOSE);
         CATCH {
             $fail = True;
         }
@@ -113,16 +135,19 @@ sub install (Str $module, Bool $strict, Bool $v, Bool :$fetch = True) {
     }
 }
 
-sub installdeps (Str $name, $strict, $v) {
-    indir "$SRCDIR/$name", {
+#
+# Install the dependencies of a module
+#
+sub installdeps (Str $module) {
+    indir modulepath($module), {
         if 'deps.proto'.IO ~~ :f {
             my $fh = open 'deps.proto';
             for $fh.lines -> $dep {
                 next if $dep ~~ /^\#/;
                 next if $dep eq '';
                 unless isinstalled $dep {
-                    notice "verbose" if $v;
-                    install $dep, $strict, $v;
+                    notice "$module depends on $dep, installing";
+                    install $dep;
                 }
             }
             $fh.close;
@@ -130,6 +155,9 @@ sub installdeps (Str $name, $strict, $v) {
     };
 }
 
+#
+# Check if a module is installed
+#
 sub isinstalled (Str $module) {
     my $isit;
     given open($INSTALLED) {
@@ -139,14 +167,31 @@ sub isinstalled (Str $module) {
     return $isit;
 }
 
+#
+# Print a list of available modules
+#
 sub listmodules {
     for %modules.keys.sort.grep({ $_ }) { .say }
 }
 
+#
+# Get a path of a module's files
+#
+sub modulepath(Str $mod) {
+    return %modules.exists($mod) ?? "$SRCDIR/$mod"
+                                 !! $mod.IO ~~ :d ?? $mod !! Nil;
+}
+
+#
+# Print a message the fancy way
+#
 sub notice (Str $what) {
     say "==> $what";
 }
 
+#
+# Update the modules database
+#
 sub updatedb {
     notice 'Updating modules database';
     indir $CONFIGDIR, {
@@ -165,9 +210,15 @@ multi MAIN ('update') {
     updatedb;
 }
 
-multi MAIN ($module, Bool :$strict, Bool :$v = False) {
+multi MAIN ($module,
+            Bool :$strict = False,
+            Bool :$v      = False,
+            Bool :$notest = False) {
     checklist;
-    install $module, $strict, $v, :fetch($module eq '.' ?? False !! True);
+    $STRICT  = $strict;
+    $VERBOSE = $v;
+    $NOTEST  = $notest;
+    install $module;
 }
 
 # vim: ft=perl6

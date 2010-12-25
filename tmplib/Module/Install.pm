@@ -9,7 +9,7 @@ sub mkdirp($name as Str) {
     }
 }
 
-our sub install(Str $dir = '.', Str $dest = "%*ENV<HOME>/.perl6/", :$v) {
+our sub install(Str :$dir = '.', Str :$dest = "%*ENV<HOME>/.perl6/", :$v) {
     if $*VM<config><osname> ne 'MSWin32'
     && "$dir/Makefile".IO ~~ :f {
         my $cwd = cwd;
