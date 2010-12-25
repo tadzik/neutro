@@ -10,7 +10,8 @@ use Module::Install;
 my $home       = ($*VM<config><osname> eq 'MSWin32')
                  ?? %*ENV<HOMEPATH> !! %*ENV<HOME>;
 my $CONFIGDIR  = "$home/.neutro";
-my $INSTALLDIR = %*ENV<DESTDIR> // "$home/.perl6";
+my $DESTDIR    = %*ENV<DESTDIR> ne "" ?? %*ENV<DESTDIR>
+                                      !! "$home/.perl6";
 my $INSTALLED  = "$CONFIGDIR/installed";
 my $SRCDIR     = "$CONFIGDIR/src";
 my $STRICT     = False;
@@ -118,7 +119,8 @@ sub install (Str $module) {
 
     notice "Installing $module";
     try {
-        Module::Install::install :dir($path), :v($VERBOSE);
+        Module::Install::install :dir($path), :dest($DESTDIR),
+                                 :v($VERBOSE);
         CATCH {
             $fail = True;
         }
