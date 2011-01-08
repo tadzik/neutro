@@ -40,7 +40,6 @@ package Settings {
     our $destdir    = %*ENV<DESTDIR> ne "" ?? %*ENV<DESTDIR>
                                            !! "$home/.perl6";
     our $srcdir     = "$configdir/src";
-    our $strict     = False;
     our $notest     = False;
     our $verbose    = False;
 
@@ -193,10 +192,7 @@ sub install (Str $module) {
     }
     crap "Building $module failed" if $fail;
 
-    unless $Settings::notest {
-        if $Settings::strict and "$path/t".IO !~~ :d {
-            crap "No tests for $module";
-        }
+    unless $Settings::notest || "$path/t".IO !~~ :d {
         notice "Testing $module";
         try {
             Module::Test::test :dir($path), :v($Settings::verbose);
@@ -246,25 +242,23 @@ sub installdeps (Str $module) {
     }
 }
 
-multi MAIN ('list') {
+sub MAIN (Bool :$v      = False,
+          Bool :$notest = False,
+          *@args where { +@args }) {
     Ecosystem::init();
-    Ecosystem::listmodules();
-}
-
-multi MAIN ('update') {
-    Ecosystem::init();
-    Ecosystem::updatedb();
-}
-
-multi MAIN (*@modules where { +@modules },
-            Bool :$strict = False,
-            Bool :$v      = False,
-            Bool :$notest = False) {
-    Ecosystem::init();
-    $Settings::strict  = $strict;
     $Settings::verbose = $v;
     $Settings::notest  = $notest;
-    @modules».&install;
+    given @args {
+        when 'list' {
+            Ecosystem::listmodules();
+        }
+        when 'update' {
+            Ecosystem::updatedb();
+        }
+        default {
+            @args».&install;
+        }
+    }
 }
 
 # vim: ft=perl6
