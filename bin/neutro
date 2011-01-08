@@ -96,6 +96,8 @@ package Ecosystem {
                 die "Failed cloning the $name repo" if $res;
             }
         };
+        # returns the directory where the module lies
+        return {$Settings::srcdir} ~ "/$name";
     }
     #
     # Check if a module is installed
@@ -119,15 +121,6 @@ package Ecosystem {
     }
 
     #
-    # Get a path of a module's files
-    #
-    our sub modulepath(Str $mod) {
-        return %modules.exists($mod) 
-               ?? "{$Settings::srcdir}/{Settings::dirname($mod)}"
-               !! $mod.IO ~~ :d ?? $mod !! Nil;
-    }
-
-    #
     # Update the modules database
     #
     our sub updatedb {
@@ -140,7 +133,7 @@ package Ecosystem {
 
                 my $fh = open('META.list');
                 for $fh.lines -> $url {
-                    run "wget --no-check-certificate $url"
+                    run "wget -q --no-check-certificate $url"
                         and die "Failed fetching $url";
                     my $info = from-json(slurp('META.info'));
                     @list.push($info);
@@ -163,24 +156,30 @@ package Ecosystem {
 #
 # Install the specified module
 #
-sub install (Str $module) {
-    my $res;
+sub install (Str $module is rw) {
     my $path;
+    my $meta;
     if %Ecosystem::modules.exists($module) {
-        unless %Ecosystem::modules{$module}<repo-type> eq 'git' {
+        $meta = %Ecosystem::modules{$module};
+        unless $meta<repo-type> eq 'git' {
             crap 'repo-type other than git NYI';
         }
         try {
-            Ecosystem::fetch $module, %Ecosystem::modules{$module}<repo-url>;
+            $path = Ecosystem::fetch $module, $meta<repo-url>;
             CATCH {
                 crap $!;
             }
         }
+    } elsif "$module/META.info".IO ~~ :f {
+        $path = $module;
+        $meta = from-json slurp "$module/META.info";
+        $module = $meta<name>;
+    } else {
+        crap "Module $module not in the ecosystem "
+             ~ "(or no module files in directory $module)";
     }
-    $path = Ecosystem::modulepath($module)
-            or crap "Unknown module or path '$module'";
 
-    installdeps $module;
+    installdeps $meta;
 
     notice "Building $module";
     my $fail = False;
@@ -226,17 +225,10 @@ sub install (Str $module) {
 #
 # Install the dependencies of a module
 #
-sub installdeps (Str $module) {
-    my @deps;
-    if %Ecosystem::modules.exists($module) {
-        @deps = %Ecosystem::modules{$module}<depends>.list
-    } else {
-        my $data = from-json slurp 'META.info';
-        @deps = $data<depends>.list;
-    }
-    for @deps -> $dep {
+sub installdeps ($meta) {
+    for $meta<depends>.list -> $dep {
         unless Ecosystem::isinstalled $dep {
-            notice "$module depends on $dep, installing";
+            notice "$meta<name> depends on $dep, installing";
             install $dep;
         }
     }
