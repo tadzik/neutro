@@ -15,4 +15,5 @@ Usage:
 neutro update
 neutro list
 neutro perl6-Acme-Meow # install perl6-Acme-Meow from the module ecosystem
+neutro ufo json        # install multiple modules in one go
 neutro .               # install a module in the current directory

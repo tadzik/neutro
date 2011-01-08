@@ -244,7 +244,7 @@ multi MAIN ('update') {
     updatedb;
 }
 
-multi MAIN ($module,
+multi MAIN (*@modules where { +@modules },
             Bool :$strict = False,
             Bool :$v      = False,
             Bool :$notest = False) {
@@ -252,7 +252,7 @@ multi MAIN ($module,
     $STRICT  = $strict;
     $VERBOSE = $v;
     $NOTEST  = $notest;
-    install $module;
+    @modules».&install;
 }
 
 # vim: ft=perl6
