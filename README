@@ -5,11 +5,9 @@ the Real Deal (proto, pls). The difference is that neutro works :)
 Patches, ideas and criticism welcome.
 
 Bootstraping:
-As neutro is not dependency-free, it comes with a set of libs which
-will help it install itself. To bootstrap neutro, use something like
-this:
-
-PERL6LIB=tmplib bin/neutro .
+As neutro is not dependency-free, it needs to fetch some modules to help
+it install itself. To bootstrap neutro, please use the provided
+bootstrap.sh script.
 
 Usage:
 neutro update
