@@ -115,7 +115,7 @@ package Ecosystem {
     #
     our sub listmodules {
         for %modules.keys.sort {
-            say $_ => %modules{$_}<description>
+            printf "%-20s\t%s\n", $_, %modules{$_}<description>
         }
     }
 
