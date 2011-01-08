@@ -61,19 +61,28 @@ sub crap (Str $msg) {
 }
 
 #
+# Translate a module name to a directory name
+# :: would break paths in PERL6LIB for example
+#
+sub dirname (Str $mod) {
+    $mod.subst(':', '_', :g);
+}
+
+#
 # Download/update the given module
 #
 sub fetch (Str $name, Str $url) {
     my $res;
+    my $dir = dirname($name);
     indir $SRCDIR, {
         notice "Fetching $name";
-        if "$SRCDIR/$name".IO ~~ :d {
-            indir $name, {
+        if "$SRCDIR/$dir".IO ~~ :d {
+            indir $dir, {
                 $res = run 'git pull -q';
                 crap "Failed updating the $name repo" if $res;
             };
         } else {
-            $res = run "git clone -q $url $name";
+            $res = run "git clone -q $url $dir";
             crap "Failed cloning the $name repo" if $res;
         }
     };
@@ -144,7 +153,14 @@ sub install (Str $module) {
 # Install the dependencies of a module
 #
 sub installdeps (Str $module) {
-    for %modules{$module}<depends>.list -> $dep {
+    my @deps;
+    if %modules.exists($module) {
+        @deps = %modules{$module}<depends>.list
+    } else {
+        my $data = from-json slurp 'META.info';
+        @deps = $data<depends>.list;
+    }
+    for @deps -> $dep {
         unless isinstalled $dep {
             notice "$module depends on $dep, installing";
             install $dep;
@@ -177,7 +193,7 @@ sub listmodules {
 # Get a path of a module's files
 #
 sub modulepath(Str $mod) {
-    return %modules.exists($mod) ?? "$SRCDIR/$mod"
+    return %modules.exists($mod) ?? "$SRCDIR/{dirname($mod)}"
                                  !! $mod.IO ~~ :d ?? $mod !! Nil;
 }
 
@@ -197,7 +213,23 @@ sub updatedb {
         unlink 'projects.json' if 'projects.json'.IO ~~ :e;
         fetch 'ecosystem', 'git://github.com/tadzik/ecosystem.git';
         indir "$SRCDIR/ecosystem", {
-            run 'perl6 update.pl';
+            my @list;
+
+            my $fh = open('META.list');
+            for $fh.lines -> $url {
+                run "wget --no-check-certificate $url"
+                    and die "Failed fetching $url";
+                my $info = from-json(slurp('META.info'));
+                @list.push($info);
+                unlink 'META.info';
+            }
+
+            given open('projects.json', :w) {
+                .say(to-json @list);
+                .close;
+            }
+
+            $fh.close;
         };
         cp "$SRCDIR/ecosystem/projects.json", "$CONFIGDIR/projects.json";
     };
