@@ -111,6 +111,16 @@ package Ecosystem {
         return $isit;
     }
 
+    our sub listinstalled {
+        given open($installed) {
+            for .lines {
+                printf "%-20s\t%s\n", $_, %modules{$_}<description>
+                                          // 'not found in the ecosystem'
+            }
+            .close;
+        }
+    }
+
     #
     # Print a list of available modules
     #
@@ -246,6 +256,9 @@ sub MAIN (Bool :$v      = False,
         }
         when 'update' {
             Ecosystem::updatedb();
+        }
+        when 'listinst' {
+            Ecosystem::listinstalled();
         }
         default {
             @args».&install;
