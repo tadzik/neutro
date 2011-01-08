@@ -1,0 +1,8 @@
+{
+    "name"        : "neutro",
+    "version"     : "*",
+    "description" : "A simple module installer for Perl 6 modules",
+    "depends"     : [ "File::Tools", "Module::Tools", "JSON::Tiny" ],
+    "repo-type"   : "git",
+    "repo-url"    : "git://github.com/tadzik/neutro.git"
+}

@@ -5,6 +5,7 @@ use File::Copy;
 use Module::Build;
 use Module::Test;
 use Module::Install;
+use JSON::Tiny;
 
 # Yay globals!
 my $home       = ($*VM<config><osname> eq 'MSWin32')
@@ -37,19 +38,18 @@ sub checklist {
     unless $CONFIGDIR.IO ~~ :d {
         mkdir $CONFIGDIR, :p;
     }
-    unless "$CONFIGDIR/projects.list".IO ~~ :f {
+    unless "$CONFIGDIR/projects.json".IO ~~ :f {
         updatedb;
     }
+    # the database of installed modules
     unless $INSTALLED.IO ~~ :f {
         open($INSTALLED, :w).close;
     }
-    my $fh = open "$CONFIGDIR/projects.list";
-    for $fh.lines -> $line {
-        next if $line ~~ /^\#/;
-        my ($name, $url) = $line.split: ' ';
-        %modules{$name} = $url;
+
+    my $list = from-json(slurp "$CONFIGDIR/projects.json");
+    for $list.list -> $mod {
+        %modules{$mod<name>} = $mod;
     }
-    $fh.close;
 }
 
 #
@@ -86,7 +86,10 @@ sub install (Str $module) {
     my $res;
     my $path;
     if %modules.exists($module) {
-        fetch $module, %modules{$module};
+        unless %modules{$module}<repo-type> eq 'git' {
+            crap 'repo-type other than git NYI';
+        }
+        fetch $module, %modules{$module}<repo-url>;
     }
     $path = modulepath($module)
             or crap "Unknown module or path '$module'";
@@ -141,20 +144,12 @@ sub install (Str $module) {
 # Install the dependencies of a module
 #
 sub installdeps (Str $module) {
-    indir modulepath($module), {
-        if 'deps.proto'.IO ~~ :f {
-            my $fh = open 'deps.proto';
-            for $fh.lines -> $dep {
-                next if $dep ~~ /^\#/;
-                next if $dep eq '';
-                unless isinstalled $dep {
-                    notice "$module depends on $dep, installing";
-                    install $dep;
-                }
-            }
-            $fh.close;
+    for %modules{$module}<depends>.list -> $dep {
+        unless isinstalled $dep {
+            notice "$module depends on $dep, installing";
+            install $dep;
         }
-    };
+    }
 }
 
 #
@@ -173,7 +168,9 @@ sub isinstalled (Str $module) {
 # Print a list of available modules
 #
 sub listmodules {
-    for %modules.keys.sort.grep({ $_ }) { .say }
+    for %modules.keys.sort {
+        say $_ => %modules{$_}<description>
+    }
 }
 
 #
@@ -197,9 +194,12 @@ sub notice (Str $what) {
 sub updatedb {
     notice 'Updating modules database';
     indir $CONFIGDIR, {
-        unlink 'projects.list' if 'projects.list'.IO ~~ :e;
-        fetch 'ecosystem', 'git://github.com/perl6/ecosystem.git';
-        cp "$SRCDIR/ecosystem/projects.list", "$CONFIGDIR/projects.list";
+        unlink 'projects.json' if 'projects.json'.IO ~~ :e;
+        fetch 'ecosystem', 'git://github.com/tadzik/ecosystem.git';
+        indir "$SRCDIR/ecosystem", {
+            run 'perl6 update.pl';
+        };
+        cp "$SRCDIR/ecosystem/projects.json", "$CONFIGDIR/projects.json";
     };
 }
 
