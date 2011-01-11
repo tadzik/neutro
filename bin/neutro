@@ -40,6 +40,7 @@ package Settings {
     our $destdir    = %*ENV<DESTDIR> ne "" ?? %*ENV<DESTDIR>
                                            !! "$home/.perl6";
     our $srcdir     = "$configdir/src";
+    our $nodeps     = False;
     our $notest     = False;
     our $verbose    = False;
 
@@ -189,7 +190,7 @@ sub install (Str $module is rw) {
              ~ "(or no module files in directory $module)";
     }
 
-    installdeps $meta;
+    installdeps $meta unless $Settings::nodeps;
 
     notice "Building $module";
     my $fail = False;
@@ -244,26 +245,61 @@ sub installdeps ($meta) {
     }
 }
 
-sub MAIN (Bool :$v      = False,
-          Bool :$notest = False,
-          *@args where { +@args }) {
+sub MAIN (Bool :$v        = False,
+          Bool :$help     = False,
+          Bool :$listinst = False,
+          Bool :$list     = False,
+          Bool :$nodeps   = False,
+          Bool :$notest   = False,
+          Bool :$update   = False,
+          *@args) {
     Ecosystem::init();
+
     $Settings::verbose = $v;
     $Settings::notest  = $notest;
-    given @args {
-        when 'list' {
-            Ecosystem::listmodules();
-        }
-        when 'update' {
-            Ecosystem::updatedb();
-        }
-        when 'listinst' {
-            Ecosystem::listinstalled();
-        }
-        default {
-            @args».&install;
-        }
-    }
+    $Settings::nodeps  = $nodeps;
+
+    $help     && USAGE();
+    $update   && Ecosystem::updatedb();
+    $list     && Ecosystem::listmodules();
+    $listinst && Ecosystem::listinstalled();
+
+    @args».&install;
+    if none(+@args, $listinst, $list, $update) { say "Nothing to do" }
+}
+
+sub USAGE {
+    say "Usage: neutro [options] Module1 Module2 ...
+
+Options:
+    --v         Be verbose
+    --help      Display this message and quit
+    --list      List the available packages
+    --listinst  List the installed packages (installed by/known to neutro)
+    --nodeps    Don't install dependencies of modules
+    --notest    Don't run unit tests for modules
+    --update    Update the module database
+
+Examples:
+    # install the NativeCall module w/o running its tests
+    neutro --notest NativeCall
+
+    # install from the current directory
+    neutro --nodeps .
+
+    # as above, but from the path ./foo/bar
+    neutro ./foo/bar
+
+    # update the module database and show the list of available modules
+    neutro --update --list
+
+    # install neutro to a directory 'mylib'
+    # NOTE: This will NOT install neutro dependencies
+    # if they're alredy installed
+    DESTDIR=mylib neutro neutro
+";
+
+    exit 0;
 }
 
 # vim: ft=perl6
