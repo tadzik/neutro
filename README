@@ -9,9 +9,4 @@ As neutro is not dependency-free, it needs to fetch some modules to help
 it install itself. To bootstrap neutro, please use the provided
 bootstrap.sh script.
 
-Usage:
-neutro update
-neutro list
-neutro perl6-Acme-Meow # install perl6-Acme-Meow from the module ecosystem
-neutro ufo json        # install multiple modules in one go
-neutro .               # install a module in the current directory
+For usage instructions check out `neutro --help`
