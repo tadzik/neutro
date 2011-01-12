@@ -122,6 +122,24 @@ package Ecosystem {
         }
     }
 
+    # Display info about a module or modules
+    #
+    our sub info (@modules) {
+        for @modules -> $m {
+            if %modules.exists($m) {
+                for %modules{$m}.kv -> $k, $v {
+                    next if $v eq '';
+                    printf "%-10s\t%s\n", $k.ucfirst, $v;
+                }
+            }
+            else {
+                say "Module $m not found in the ecosystem";
+            }
+
+            print "\n";
+        }
+    }
+
     #
     # Print a list of available modules
     #
@@ -252,6 +270,7 @@ sub MAIN (Bool :$v        = False,
           Bool :$nodeps   = False,
           Bool :$notest   = False,
           Bool :$update   = False,
+          Bool :$info     = False,
           *@args) {
     Ecosystem::init();
 
@@ -263,9 +282,10 @@ sub MAIN (Bool :$v        = False,
     $update   && Ecosystem::updatedb();
     $list     && Ecosystem::listmodules();
     $listinst && Ecosystem::listinstalled();
+    $info     && Ecosystem::info(@args);
 
-    @args».&install;
-    if none(+@args, $listinst, $list, $update) { say "Nothing to do" }
+    @args».&install unless $info;
+    if none(+@args, $info, $listinst, $list, $update) { say "Nothing to do" }
 }
 
 sub USAGE {
@@ -276,6 +296,7 @@ Options:
     --help      Display this message and quit
     --list      List the available packages
     --listinst  List the installed packages (installed by/known to neutro)
+    --info      Display information on a specific module(s)
     --nodeps    Don't install dependencies of modules
     --notest    Don't run unit tests for modules
     --update    Update the module database
