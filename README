@@ -1,3 +1,13 @@
+== NOTE ==
+
+neutro is now considered deprecated in favor of panda [0]. Soon it will
+probably get completely abandoned, so please consider using panda now.
+All bugs in neutro are likely to never be fixed
+
+[0] https://github.com/tadzik/Pies
+
+==========
+
 neutro is a module installer for Perl 6.
 It's a temporary working solution, while experts build
 the Real Deal (proto, pls). The difference is that neutro works :)
